@@ -10,3 +10,4 @@ obj/
 
 # App data written next to the project (frames live wherever you want them now)
 *.tmp
+*.csproj.user
