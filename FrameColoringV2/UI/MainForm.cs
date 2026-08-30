@@ -73,6 +73,7 @@ public sealed partial class MainForm : Form
     private bool paintingStroke;
 
     // Rendering.
+    private CurveSet? previewCurves;   // curves shown on the canvas while the dialog is open
     private Image<Rgba32>? composite;
     private Bitmap? displayBitmap;
 
@@ -706,6 +707,48 @@ public sealed partial class MainForm : Form
         SetStatusMessage($"{label} applied to {documents.Count} frame(s).");
     }
 
+    private async void ApplyCurves()
+    {
+        if (session.Count == 0)
+        {
+            SetStatusMessage("Open some frames first.");
+            return;
+        }
+
+        var selected = SelectedDocuments();
+        using var dialog = new CurvesDialog(PrimaryDocument()?.Image, selected.Count, session.Count);
+
+        dialog.PreviewChanged += (_, _) =>
+        {
+            previewCurves = dialog.PreviewCurves;
+            RefreshCanvas();
+        };
+
+        var result = dialog.ShowDialog(this);
+
+        previewCurves = null;
+        RefreshCanvas();
+
+        if (result != DialogResult.OK) return;
+
+        if (dialog.Curves.IsIdentity)
+        {
+            SetStatusMessage("Curves left unchanged.");
+            return;
+        }
+
+        var targets = dialog.ApplyToAllFrames ? session.Documents.ToList() : selected;
+        if (targets.Count == 0)
+        {
+            SetStatusMessage("Select at least one frame first.");
+            return;
+        }
+
+        // Snapshot the curves so later edits of the dialog object cannot change the batch.
+        var curves = dialog.Curves.Clone();
+        await RunOnFrames("Curves", targets, (document, token) => curves.Apply(document.Image, token));
+    }
+
     private async void ApplyMedianFilter()
     {
         if (session.Count == 0)
@@ -1297,6 +1340,14 @@ public sealed partial class MainForm : Form
             FrameOps.ClearTransparent(composite);
         }
 
+        // While the Curves dialog is open the frame is shown adjusted without touching the document.
+        Image<Rgba32>? preview = null;
+        if (previewCurves != null)
+        {
+            preview = primary.Image.Clone();
+            previewCurves.Apply(preview);
+        }
+
         composite.Mutate(context =>
         {
             if (settings.OnionSkin && documents.Count > 1)
@@ -1307,8 +1358,10 @@ public sealed partial class MainForm : Form
                 }
             }
 
-            context.DrawImage(primary.Image, 1f);
+            context.DrawImage(preview ?? primary.Image, 1f);
         });
+
+        preview?.Dispose();
 
         displayBitmap = BitmapBridge.ToBitmap(composite, displayBitmap);
         canvas.SetSurface(displayBitmap, resetView);

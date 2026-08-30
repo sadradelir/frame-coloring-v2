@@ -90,6 +90,19 @@ The first selected frame is the one being edited on screen; the rest are shown a
 
 ## Filters
 
+**Filters ▸ Curves…** (Ctrl+Shift+C) is Photoshop's Curves: a grid where the horizontal axis is
+the input value and the vertical one the output, so dragging the bottom left corner upwards
+lifts the blacks, an S shape adds contrast, and so on. Drag the line to bend it, click an empty
+spot to add a point, right click a point to remove it. The histogram of the current frame is
+drawn behind the curve as a guide.
+
+The **Channel** box switches between the RGB composite and the Red, Green, Blue and Alpha
+curves; per channel curves run first and the composite one on top, as in Photoshop. The result
+is previewed live on the canvas while you drag (untick *Preview on the canvas* to compare), and
+Apply writes it to the selected frames or to all open frames as a single undo step. Fully
+transparent pixels are left alone, so lifting the blacks cannot make a halo appear around the
+sprite.
+
 **Filters ▸ Median…** (Ctrl+M) is the same filter as Photoshop's Noise ▸ Median: every pixel
 becomes the median of its neighbours inside a disc of the chosen radius. It kills stray pixels
 and rounds off jagged anti-aliased edges while keeping hard colour borders where they are,
