@@ -177,8 +177,11 @@ public sealed partial class MainForm
         buttonRow.Controls.Add(customColorButton, 0, 0);
         buttonRow.Controls.Add(addToPaletteButton, 1, 0);
         details.Controls.Add(buttonRow);
-        buttonRow.BringToFront();
+
+        // Docking is applied in reverse z-order: the hex label takes the top row,
+        // the buttons the one under it.
         colorHexLabel.BringToFront();
+        buttonRow.BringToFront();
 
         colorRow.Controls.Add(details);
         details.BringToFront();
