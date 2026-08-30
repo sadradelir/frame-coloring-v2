@@ -1,6 +1,6 @@
-namespace FrameColoringV2;
+namespace FrameColoringV2.UI;
 
-public class ProgressDialog : Form
+public sealed class ProgressDialog : Form
 {
     private readonly ProgressBar progressBar;
     private readonly Label statusLabel;
@@ -13,25 +13,29 @@ public class ProgressDialog : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ControlBox = false;
-        ClientSize = new Size(420, 110);
+        ClientSize = new Size(440, 110);
+        BackColor = Theme.Background;
+        ForeColor = Theme.Text;
+        Font = Theme.UiFont;
 
         statusLabel = new Label
         {
-            Location = new Point(15, 15),
-            Size = new Size(390, 40),
-            Text = "Starting...",
+            Location = new Point(16, 18),
+            Size = new Size(408, 40),
+            Text = "Starting…",
+            ForeColor = Theme.Text,
             TextAlign = ContentAlignment.MiddleLeft
         };
         Controls.Add(statusLabel);
 
         progressBar = new ProgressBar
         {
-            Location = new Point(15, 60),
-            Size = new Size(390, 30),
+            Location = new Point(16, 62),
+            Size = new Size(408, 22),
             Minimum = 0,
             Maximum = 100,
-            Value = 0,
-            Style = ProgressBarStyle.Continuous
+            Style = ProgressBarStyle.Continuous,
+            ForeColor = Theme.Accent
         };
         Controls.Add(progressBar);
     }
@@ -47,8 +51,9 @@ public class ProgressDialog : Form
         if (total > 0)
         {
             progressBar.Maximum = total;
-            progressBar.Value = Math.Min(current, total);
+            progressBar.Value = Math.Clamp(current, 0, total);
         }
+
         statusLabel.Text = message;
     }
 }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FrameColoringV2")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c82c05938c19464e8e56114561591fca1ac6e7f1")]
 [assembly: System.Reflection.AssemblyProductAttribute("FrameColoringV2")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FrameColoringV2")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

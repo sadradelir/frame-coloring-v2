@@ -1,8 +1,6 @@
-﻿using System.Diagnostics;
 using SixLabors.ImageSharp.PixelFormats;
-using Color = SixLabors.ImageSharp.Color;
 
-namespace FrameColoringV2;
+namespace FrameColoringV2.Imaging;
 
 public static class ColorHelper
 {

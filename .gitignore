@@ -1,0 +1,12 @@
+# Build output
+bin/
+obj/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+
+# App data written next to the project (frames live wherever you want them now)
+*.tmp
