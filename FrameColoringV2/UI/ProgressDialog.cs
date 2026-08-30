@@ -5,7 +5,10 @@ public sealed class ProgressDialog : Form
     private readonly ProgressBar progressBar;
     private readonly Label statusLabel;
 
-    public ProgressDialog(string title)
+    /// <summary>Raised when the user presses Cancel, if the dialog was created with one.</summary>
+    public event EventHandler? Cancelled;
+
+    public ProgressDialog(string title, bool cancellable = false)
     {
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -13,7 +16,7 @@ public sealed class ProgressDialog : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ControlBox = false;
-        ClientSize = new Size(440, 110);
+        ClientSize = new Size(440, cancellable ? 148 : 110);
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
         Font = Theme.UiFont;
@@ -38,6 +41,23 @@ public sealed class ProgressDialog : Form
             ForeColor = Theme.Accent
         };
         Controls.Add(progressBar);
+
+        if (!cancellable) return;
+
+        var cancelButton = new Button
+        {
+            Location = new Point(346, 96),
+            Size = new Size(78, 28),
+            Text = "Cancel"
+        };
+        cancelButton.Click += (_, _) =>
+        {
+            cancelButton.Enabled = false;
+            statusLabel.Text = "Cancelling…";
+            Cancelled?.Invoke(this, EventArgs.Empty);
+        };
+        Theme.StyleButton(cancelButton);
+        Controls.Add(cancelButton);
     }
 
     public void Report(int current, int total, string message)

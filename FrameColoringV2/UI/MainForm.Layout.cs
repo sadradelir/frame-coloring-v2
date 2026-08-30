@@ -556,10 +556,16 @@ public sealed partial class MainForm
             Menu("Set External Editor…", Keys.None, SetExternalEditor)
         });
 
+        var filtersMenu = new ToolStripMenuItem("Filters");
+        filtersMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            Menu("Median…", Keys.Control | Keys.M, ApplyMedianFilter)
+        });
+
         var helpMenu = new ToolStripMenuItem("Help");
         helpMenu.DropDownItems.Add(Menu("Shortcuts", Keys.F1, ShowShortcuts));
 
-        strip.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, toolsMenu, helpMenu });
+        strip.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, toolsMenu, filtersMenu, helpMenu });
         return strip;
     }
 

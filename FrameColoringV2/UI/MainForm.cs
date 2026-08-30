@@ -706,6 +706,102 @@ public sealed partial class MainForm : Form
         SetStatusMessage($"{label} applied to {documents.Count} frame(s).");
     }
 
+    private async void ApplyMedianFilter()
+    {
+        if (session.Count == 0)
+        {
+            SetStatusMessage("Open some frames first.");
+            return;
+        }
+
+        var selected = SelectedDocuments();
+        using var dialog = new MedianFilterDialog(settings.MedianRadius, settings.MedianIgnoreTransparent,
+            selected.Count, session.Count);
+
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        settings.MedianRadius = dialog.Radius;
+        settings.MedianIgnoreTransparent = dialog.IgnoreTransparent;
+
+        var targets = dialog.ApplyToAllFrames ? session.Documents.ToList() : selected;
+        if (targets.Count == 0)
+        {
+            SetStatusMessage("Select at least one frame first.");
+            return;
+        }
+
+        int radius = dialog.Radius;
+        bool ignoreTransparent = dialog.IgnoreTransparent;
+
+        await RunOnFrames($"Median {radius}px", targets,
+            (document, token) => MedianFilter.Apply(document.Image, radius, ignoreTransparent, token));
+    }
+
+    /// <summary>
+    /// Runs a slow per frame operation in the background with a progress dialog, recording one
+    /// undo step for the whole batch.
+    /// </summary>
+    private async Task RunOnFrames(string label, IReadOnlyList<FrameDocument> targets,
+        Action<FrameDocument, CancellationToken> action)
+    {
+        history.BeginAndCapture(label, targets);
+
+        using var cancellation = new CancellationTokenSource();
+        using var dialog = new ProgressDialog(label, cancellable: true);
+        dialog.Cancelled += (_, _) => cancellation.Cancel();
+
+        var progress = new Progress<(int current, int total, string message)>(p =>
+            dialog.Report(p.current, p.total, p.message));
+
+        int done = 0;
+        Exception? failure = null;
+
+        dialog.Show(this);
+        try
+        {
+            await Task.Run(() =>
+            {
+                var reporter = (IProgress<(int, int, string)>)progress;
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    cancellation.Token.ThrowIfCancellationRequested();
+
+                    reporter.Report((i, targets.Count, $"{targets[i].FileName}  ({i + 1}/{targets.Count})"));
+                    action(targets[i], cancellation.Token);
+                    targets[i].MarkDirty();
+                    done++;
+                }
+            }, cancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Frames already processed keep their result; one Ctrl+Z undoes the whole batch.
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            dialog.Close();
+        }
+
+        history.Commit();
+        RefreshFrameLabels();
+        RefreshCanvas();
+        UpdateStatus();
+
+        if (failure != null)
+        {
+            MessageBox.Show(this, failure.Message, label, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        SetStatusMessage(done == targets.Count
+            ? $"{label} applied to {done} frame(s)."
+            : $"{label} cancelled after {done} of {targets.Count} frame(s).");
+    }
+
     private void AnalyzeSelected()
     {
         var documents = SelectedDocuments();
