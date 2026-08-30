@@ -1,0 +1,17 @@
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\FrameColoringV2.exe
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\FrameColoringV2.deps.json
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\FrameColoringV2.runtimeconfig.json
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\FrameColoringV2.dll
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\FrameColoringV2.pdb
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.GeneratedMSBuildEditorConfig.editorconfig
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.AssemblyInfoInputs.cache
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.AssemblyInfo.cs
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.csproj.CoreCompileInputs.cache
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.dll
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\refint\FrameColoringV2.dll
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.pdb
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.genruntimeconfig.cache
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\ref\FrameColoringV2.dll
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\bin\Debug\net7.0-windows\SixLabors.ImageSharp.dll
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameColoringV2.csproj.AssemblyReference.cache
+C:\Projects\software projects\FrameColor\FrameColoringV2\FrameColoringV2\FrameColoringV2\obj\Debug\net7.0-windows\FrameCol.CAF1D490.Up2Date
