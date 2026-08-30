@@ -37,6 +37,10 @@ Nothing is tied to folders inside the project any more.
 Frames with unsaved changes are marked with `*` in the list and counted in the status bar;
 closing the app or replacing the open set asks before losing them.
 
+**Right click a frame in the list** for Save, Save As…, Export To Folder…, Reload From Disk,
+Open In External Editor, Show In File Explorer, Copy Full Path and Remove From List. The menu
+acts on the whole selection, and right clicking a frame outside the selection selects it first.
+
 Settings (recent folders, palette, brush size, external editor, sidebar width) are stored in
 `%AppData%\FrameColoringV2\settings.json`.
 
@@ -51,7 +55,22 @@ the dialog and on the canvas behind it. **Restore defaults** puts the original c
 New sections are added by writing another `BuildXxxPage` method in `UI/SettingsDialog.cs`
 and registering it in the `pages` dictionary.
 
+## Undo
+
+**Edit ▸ Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) cover every pixel operation: fill, replace fill,
+brush and eraser strokes (one stroke is one step), crop, trim, empower, drop shadow, flip and
+reload. A step covers all the frames the operation touched, so undoing a fill applied to a whole
+animation puts every frame back at once. The history keeps up to 40 steps and drops the oldest
+ones when it grows past ~512 MB, and it is cleared when the open frames are replaced.
+
 ## Tools
+
+Each tool shows only its own options in the toolbar: **Fill bleed** and **Auto next** for the fill
+tools, **Brush size** for brush and eraser, **Apply Crop** for the crop tool.
+
+**Auto next** makes the editor jump to the next frame in the list right after a fill, so you can
+color a whole animation without leaving the mouse. It only advances when a single frame is
+selected, since with several selected there is no obvious next one.
 
 | Key | Tool | What it does |
 | --- | --- | --- |

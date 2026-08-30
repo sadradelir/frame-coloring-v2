@@ -35,6 +35,7 @@ public sealed class AppSettings
     public float OnionSkinOpacity { get; set; } = 0.4f;
     public int BrushSize { get; set; } = 4;
     public int FillTolerance { get; set; } = 2;
+    public bool AutoNextFrame { get; set; }
     public string ExternalEditorPath { get; set; } = @"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe";
     public bool ReopenLastFolder { get; set; } = true;
     public int SidebarWidth { get; set; } = 360;

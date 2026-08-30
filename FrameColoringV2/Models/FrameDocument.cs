@@ -43,6 +43,18 @@ public sealed class FrameDocument : IDisposable
         IsDirty = true;
     }
 
+    /// <summary>
+    /// Puts another image in place and hands the previous one back without disposing it,
+    /// which is how the undo history swaps snapshots in and out.
+    /// </summary>
+    public Image<Rgba32> SwapImage(Image<Rgba32> replacement, bool dirty)
+    {
+        var previous = Image;
+        Image = replacement;
+        IsDirty = dirty;
+        return previous;
+    }
+
     public void Save() => SaveTo(FilePath, rebind: true);
 
     /// <summary>Saves to another path. When <paramref name="rebind"/> is true the document follows the new path.</summary>

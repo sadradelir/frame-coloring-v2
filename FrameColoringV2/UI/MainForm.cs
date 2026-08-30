@@ -26,6 +26,7 @@ public sealed partial class MainForm : Form
 {
     private readonly AppSettings settings;
     private readonly FrameSession session = new();
+    private readonly UndoHistory history = new();
 
     // Controls (built in MainForm.Layout.cs).
     private CanvasView canvas = null!;
@@ -47,7 +48,15 @@ public sealed partial class MainForm : Form
     private ToolStripButton pickerToolButton = null!;
     private ToolStripButton cropToolButton = null!;
     private ToolStripButton applyCropButton = null!;
+    private ToolStripButton autoNextButton = null!;
     private ToolStripButton onionSkinButton = null!;
+    private ToolStripLabel brushSizeLabel = null!;
+    private ToolStripLabel fillBleedLabel = null!;
+    private ToolStripControlHost brushSizeHost = null!;
+    private ToolStripControlHost fillBleedHost = null!;
+    private ToolStripSeparator toolOptionsSeparator = null!;
+    private ToolStripMenuItem undoMenuItem = null!;
+    private ToolStripMenuItem redoMenuItem = null!;
     private ToolStripMenuItem recentFoldersMenu = null!;
     private ToolStripMenuItem onionSkinMenuItem = null!;
     private ToolStripStatusLabel statusFile = null!;
@@ -164,6 +173,7 @@ public sealed partial class MainForm : Form
         Cursor = Cursors.WaitCursor;
         try
         {
+            if (replaceExisting) history.Clear();
             var failures = session.Open(paths, replaceExisting);
             RebuildFramesList(selectFirst: true);
 
@@ -328,7 +338,12 @@ public sealed partial class MainForm : Form
 
     private void ReloadSelected()
     {
-        foreach (var document in SelectedDocuments())
+        var selected = SelectedDocuments();
+        if (selected.Count == 0) return;
+
+        history.BeginAndCapture("Reload", selected);
+
+        foreach (var document in selected)
         {
             try
             {
@@ -341,6 +356,7 @@ public sealed partial class MainForm : Form
             }
         }
 
+        history.Commit();
         RefreshFrameLabels();
         RefreshCanvas();
         UpdateStatus();
@@ -358,6 +374,7 @@ public sealed partial class MainForm : Form
             if (answer != DialogResult.Yes) return;
         }
 
+        history.Forget(documents);
         session.Remove(documents);
         RebuildFramesList(selectFirst: true);
     }
@@ -366,6 +383,7 @@ public sealed partial class MainForm : Form
     {
         if (askToSave && !ConfirmDiscardChanges()) return;
 
+        history.Clear();
         session.CloseAll();
         RebuildFramesList(selectFirst: false);
     }
@@ -390,6 +408,25 @@ public sealed partial class MainForm : Form
         }
     }
 
+    private static string ToolLabel(EditorTool tool) => tool switch
+    {
+        EditorTool.Fill => "Fill",
+        EditorTool.ReplaceFill => "Replace fill",
+        EditorTool.Brush => "Brush",
+        EditorTool.Eraser => "Eraser",
+        EditorTool.Crop => "Crop",
+        _ => "Edit"
+    };
+
+    /// <summary>Auto next: after a fill, move on to the next frame in the list.</summary>
+    private void AutoAdvanceFrame()
+    {
+        if (!settings.AutoNextFrame) return;
+        if (framesList.SelectedIndices.Count != 1) return; // ambiguous with a multi selection
+
+        StepFrame(1);
+    }
+
     private static string? FirstExistingFolder(params string?[] candidates) =>
         candidates.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c) && Directory.Exists(c));
 
@@ -406,11 +443,29 @@ public sealed partial class MainForm : Form
             button.BackColor = active ? Theme.Accent : Color.Transparent;
         }
 
-        applyCropButton.Enabled = tool == EditorTool.Crop;
+        UpdateToolOptions();
         canvas.CropOverlay = tool == EditorTool.Crop ? EnsureCropRectangle() : null;
         canvas.Cursor = tool == EditorTool.Picker ? Cursors.Hand : Cursors.Cross;
         canvas.Invalidate();
         UpdateStatus();
+    }
+
+    /// <summary>Shows the options that belong to the active tool and hides the rest.</summary>
+    private void UpdateToolOptions()
+    {
+        bool isFill = currentTool == EditorTool.Fill;
+        bool isReplaceFill = currentTool == EditorTool.ReplaceFill;
+        bool isBrush = currentTool is EditorTool.Brush or EditorTool.Eraser;
+        bool isCrop = currentTool == EditorTool.Crop;
+
+        fillBleedLabel.Visible = isFill;
+        fillBleedHost.Visible = isFill;
+        autoNextButton.Visible = isFill || isReplaceFill;
+        brushSizeLabel.Visible = isBrush;
+        brushSizeHost.Visible = isBrush;
+        applyCropButton.Visible = isCrop;
+
+        toolOptionsSeparator.Visible = isFill || isReplaceFill || isBrush || isCrop;
     }
 
     private Rectangle EnsureCropRectangle()
@@ -444,8 +499,18 @@ public sealed partial class MainForm : Form
                 DragCropCorner(e.Pixel);
                 return;
             default:
+                // A brush stroke is one undo step from mouse down to mouse up;
+                // a fill is a step on its own.
+                history.BeginAndCapture(ToolLabel(currentTool), SelectedDocuments());
                 paintingStroke = true;
                 ApplyToolAt(e.Pixel);
+
+                if (currentTool is EditorTool.Fill or EditorTool.ReplaceFill)
+                {
+                    history.Commit();
+                    AutoAdvanceFrame();
+                }
+
                 return;
         }
     }
@@ -464,6 +529,19 @@ public sealed partial class MainForm : Form
                 DragCropCorner(e.Pixel);
                 break;
         }
+    }
+
+    private void EndStroke()
+    {
+        if (!paintingStroke) return;
+
+        paintingStroke = false;
+
+        // Fills already committed themselves; brush strokes close here.
+        if (currentTool is EditorTool.Brush or EditorTool.Eraser) history.Commit();
+        else history.Cancel();
+
+        UpdateStatus();
     }
 
     private void Canvas_PixelMouseMove(object? sender, PixelMouseEventArgs e)
@@ -553,10 +631,14 @@ public sealed partial class MainForm : Form
         if (documents.Count == 0) return;
 
         var rectangle = EnsureCropRectangle();
+        history.BeginAndCapture("Crop", documents);
+
         foreach (var document in documents)
         {
             document.ReplaceImage(FrameOps.Crop(document.Image, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height));
         }
+
+        history.Commit();
 
         cropRectangle = new Rectangle(0, 0, 0, 0);
         SetTool(EditorTool.Fill);
@@ -571,6 +653,8 @@ public sealed partial class MainForm : Form
         var documents = SelectedDocuments();
         if (documents.Count == 0) return;
 
+        history.BeginAndCapture("Trim", documents);
+
         int trimmed = 0;
         foreach (var document in documents)
         {
@@ -580,6 +664,8 @@ public sealed partial class MainForm : Form
             document.ReplaceImage(FrameOps.Crop(document.Image, bounds.X, bounds.Y, bounds.Width, bounds.Height));
             trimmed++;
         }
+
+        history.Commit();
 
         RefreshFrameLabels();
         RefreshCanvas(resetView: true);
@@ -596,6 +682,8 @@ public sealed partial class MainForm : Form
             return;
         }
 
+        history.BeginAndCapture(label, documents);
+
         Cursor = Cursors.WaitCursor;
         try
         {
@@ -609,6 +697,8 @@ public sealed partial class MainForm : Form
         {
             Cursor = Cursors.Default;
         }
+
+        history.Commit();
 
         RefreshFrameLabels();
         RefreshCanvas();
@@ -761,6 +851,87 @@ public sealed partial class MainForm : Form
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK) settings.ExternalEditorPath = dialog.FileName;
+    }
+
+    private void Undo()
+    {
+        string? label = history.Undo();
+        if (label == null)
+        {
+            SetStatusMessage("Nothing to undo.");
+            return;
+        }
+
+        AfterHistoryChange($"Undid {label}.");
+    }
+
+    private void Redo()
+    {
+        string? label = history.Redo();
+        if (label == null)
+        {
+            SetStatusMessage("Nothing to redo.");
+            return;
+        }
+
+        AfterHistoryChange($"Redid {label}.");
+    }
+
+    private void AfterHistoryChange(string message)
+    {
+        RefreshFrameLabels();
+        RefreshCanvas();
+        UpdateStatus();
+        SetStatusMessage(message);
+    }
+
+    private void RevealInFileExplorer()
+    {
+        var documents = SelectedDocuments();
+        if (documents.Count == 0) return;
+
+        // One window per folder, and never more than a handful of them.
+        var perFolder = documents
+            .GroupBy(document => document.FolderPath, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .Select(group => group.First());
+
+        foreach (var document in perFolder)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{document.FilePath}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "Could not open File Explorer",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+        }
+    }
+
+    private void CopySelectedPaths()
+    {
+        var documents = SelectedDocuments();
+        if (documents.Count == 0) return;
+
+        try
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, documents.Select(document => document.FilePath)));
+            SetStatusMessage(documents.Count == 1
+                ? "Path copied to the clipboard."
+                : $"{documents.Count} paths copied to the clipboard.");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "Clipboard", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private void ShowSettings()
@@ -1060,6 +1231,11 @@ public sealed partial class MainForm : Form
 
         statusSize.Text = primary == null ? "—" : $"{primary.Image.Width}×{primary.Image.Height}";
         statusZoom.Text = $"{canvas.Zoom * 100:0}%";
+
+        undoMenuItem.Enabled = history.CanUndo;
+        undoMenuItem.Text = history.CanUndo ? $"Undo {history.UndoLabel}" : "Undo";
+        redoMenuItem.Enabled = history.CanRedo;
+        redoMenuItem.Text = history.CanRedo ? $"Redo {history.RedoLabel}" : "Redo";
         statusDirty.Text = session.UnsavedCount > 0 ? $"● {session.UnsavedCount} unsaved" : string.Empty;
 
         string folder = session.CommonFolder ?? (session.Count > 0 ? "multiple folders" : string.Empty);
@@ -1138,6 +1314,7 @@ public sealed partial class MainForm : Form
         {
             composite?.Dispose();
             displayBitmap?.Dispose();
+            history.Dispose();
             session.Dispose();
         }
 

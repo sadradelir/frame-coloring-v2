@@ -45,7 +45,7 @@ public sealed partial class MainForm
         canvas.PixelMouseDown += Canvas_PixelMouseDown;
         canvas.PixelMouseDrag += Canvas_PixelMouseDrag;
         canvas.PixelMouseMove += Canvas_PixelMouseMove;
-        canvas.PixelMouseUp += (_, _) => paintingStroke = false;
+        canvas.PixelMouseUp += (_, _) => EndStroke();
         canvas.FrameStepRequested += (_, delta) => StepFrame(delta);
         canvas.ViewChanged += (_, _) => UpdateStatus();
 
@@ -297,7 +297,66 @@ public sealed partial class MainForm
             if (framesList.Columns.Count > 0) framesList.Columns[0].Width = framesList.ClientSize.Width - 4;
         };
 
+        // Right clicking a frame that is not part of the selection selects it first,
+        // so the menu always acts on what the user pointed at.
+        framesList.MouseDown += (_, e) =>
+        {
+            if (e.Button != MouseButtons.Right) return;
+
+            var item = framesList.GetItemAt(e.X, e.Y);
+            if (item != null && !item.Selected) SetSelection(new[] { item.Index });
+        };
+        framesList.ContextMenuStrip = BuildFramesContextMenu();
+
         return framesList;
+    }
+
+    private ContextMenuStrip BuildFramesContextMenu()
+    {
+        var menu = new ContextMenuStrip
+        {
+            Renderer = new DarkStripRenderer(),
+            BackColor = Theme.Surface,
+            ForeColor = Theme.Text,
+            ShowImageMargin = false
+        };
+
+        var save = new ToolStripMenuItem("Save", null, (_, _) => SaveSelected());
+        var saveAs = new ToolStripMenuItem("Save As…", null, (_, _) => SaveSelectedAs());
+        var export = new ToolStripMenuItem("Export To Folder…", null, (_, _) => ExportSelectedToFolder());
+        var reload = new ToolStripMenuItem("Reload From Disk", null, (_, _) => ReloadSelected());
+        var openExternal = new ToolStripMenuItem("Open In External Editor", null, (_, _) => OpenInExternalEditor());
+        var reveal = new ToolStripMenuItem("Show In File Explorer", null, (_, _) => RevealInFileExplorer());
+        var copyPath = new ToolStripMenuItem("Copy Full Path", null, (_, _) => CopySelectedPaths());
+        var remove = new ToolStripMenuItem("Remove From List", null, (_, _) => RemoveSelectedFromList());
+
+        menu.Items.AddRange(new ToolStripItem[]
+        {
+            save, saveAs, export,
+            new ToolStripSeparator(),
+            reload,
+            new ToolStripSeparator(),
+            openExternal, reveal, copyPath,
+            new ToolStripSeparator(),
+            remove
+        });
+
+        menu.Opening += (_, e) =>
+        {
+            int count = framesList.SelectedIndices.Count;
+            if (count == 0)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            save.Enabled = SelectedDocuments().Any(document => document.IsDirty);
+            saveAs.Text = count == 1 ? "Save As…" : $"Save {count} Frames As…";
+            copyPath.Text = count == 1 ? "Copy Full Path" : $"Copy {count} Full Paths";
+            remove.Text = count == 1 ? "Remove From List" : $"Remove {count} From List";
+        };
+
+        return menu;
     }
 
     private ToolStrip BuildToolStrip()
@@ -326,6 +385,11 @@ public sealed partial class MainForm
             new ToolStripSeparator()
         });
 
+        // Tool options. Only the ones that belong to the active tool are shown,
+        // see UpdateToolOptions().
+        toolOptionsSeparator = new ToolStripSeparator();
+        toolStrip.Items.Add(toolOptionsSeparator);
+
         brushSizeUpDown = new NumericUpDown
         {
             Minimum = 1,
@@ -338,8 +402,10 @@ public sealed partial class MainForm
         };
         brushSizeUpDown.ValueChanged += (_, _) => settings.BrushSize = (int)brushSizeUpDown.Value;
 
-        toolStrip.Items.Add(new ToolStripLabel("Brush size") { ForeColor = Theme.TextDim });
-        toolStrip.Items.Add(new ToolStripControlHost(brushSizeUpDown));
+        brushSizeLabel = new ToolStripLabel("Brush size") { ForeColor = Theme.TextDim };
+        brushSizeHost = new ToolStripControlHost(brushSizeUpDown);
+        toolStrip.Items.Add(brushSizeLabel);
+        toolStrip.Items.Add(brushSizeHost);
 
         fillToleranceUpDown = new NumericUpDown
         {
@@ -353,13 +419,25 @@ public sealed partial class MainForm
         };
         fillToleranceUpDown.ValueChanged += (_, _) => settings.FillTolerance = (int)fillToleranceUpDown.Value;
 
-        toolStrip.Items.Add(new ToolStripLabel("Fill bleed") { ForeColor = Theme.TextDim });
-        toolStrip.Items.Add(new ToolStripControlHost(fillToleranceUpDown));
-        toolStrip.Items.Add(new ToolStripSeparator());
+        fillBleedLabel = new ToolStripLabel("Fill bleed") { ForeColor = Theme.TextDim };
+        fillBleedHost = new ToolStripControlHost(fillToleranceUpDown);
+        toolStrip.Items.Add(fillBleedLabel);
+        toolStrip.Items.Add(fillBleedHost);
 
-        applyCropButton = new ToolStripButton("Apply Crop") { Enabled = false, ForeColor = Theme.Text };
+        autoNextButton = new ToolStripButton("Auto next")
+        {
+            CheckOnClick = true,
+            Checked = settings.AutoNextFrame,
+            ForeColor = Theme.Text,
+            ToolTipText = "After a fill, jump to the next frame in the list"
+        };
+        autoNextButton.CheckedChanged += (_, _) => settings.AutoNextFrame = autoNextButton.Checked;
+        toolStrip.Items.Add(autoNextButton);
+
+        applyCropButton = new ToolStripButton("Apply Crop") { ForeColor = Theme.Text };
         applyCropButton.Click += (_, _) => ApplyCrop();
         toolStrip.Items.Add(applyCropButton);
+
         toolStrip.Items.Add(new ToolStripSeparator());
 
         onionSkinButton = new ToolStripButton("Onion skin")
@@ -437,6 +515,12 @@ public sealed partial class MainForm
             Menu("Exit", Keys.Alt | Keys.F4, Close)
         });
 
+        undoMenuItem = Menu("Undo", Keys.Control | Keys.Z, Undo);
+        redoMenuItem = Menu("Redo", Keys.Control | Keys.Y, Redo);
+
+        var editMenu = new ToolStripMenuItem("Edit");
+        editMenu.DropDownItems.AddRange(new ToolStripItem[] { undoMenuItem, redoMenuItem });
+
         var viewMenu = new ToolStripMenuItem("View");
         onionSkinMenuItem = new ToolStripMenuItem("Onion Skin", null, (_, _) =>
         {
@@ -475,7 +559,7 @@ public sealed partial class MainForm
         var helpMenu = new ToolStripMenuItem("Help");
         helpMenu.DropDownItems.Add(Menu("Shortcuts", Keys.F1, ShowShortcuts));
 
-        strip.Items.AddRange(new ToolStripItem[] { fileMenu, viewMenu, toolsMenu, helpMenu });
+        strip.Items.AddRange(new ToolStripItem[] { fileMenu, editMenu, viewMenu, toolsMenu, helpMenu });
         return strip;
     }
 
