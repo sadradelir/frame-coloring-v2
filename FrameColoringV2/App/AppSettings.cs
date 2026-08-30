@@ -23,6 +23,10 @@ public sealed class AppSettings
 
     public const int MaxRecent = 10;
 
+    public const string DefaultCheckerLight = "#464a50";
+    public const string DefaultCheckerDark = "#3a3e44";
+    public const int DefaultCheckerSquareSize = 8;
+
     public string? LastOpenFolder { get; set; }
     public string? LastSaveFolder { get; set; }
     public List<string> RecentFolders { get; set; } = new();
@@ -34,6 +38,11 @@ public sealed class AppSettings
     public string ExternalEditorPath { get; set; } = @"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe";
     public bool ReopenLastFolder { get; set; } = true;
     public int SidebarWidth { get; set; } = 360;
+
+    // Transparency checkerboard behind the frame.
+    public string CheckerLightColor { get; set; } = DefaultCheckerLight;
+    public string CheckerDarkColor { get; set; } = DefaultCheckerDark;
+    public int CheckerSquareSize { get; set; } = DefaultCheckerSquareSize;
     public List<PaletteEntry> Palette { get; set; } = DefaultPalette();
 
     [JsonIgnore]

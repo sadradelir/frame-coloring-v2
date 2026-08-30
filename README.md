@@ -40,6 +40,17 @@ closing the app or replacing the open set asks before losing them.
 Settings (recent folders, palette, brush size, external editor, sidebar width) are stored in
 `%AppData%\FrameColoringV2\settings.json`.
 
+## Settings
+
+**File ▸ Settings…** (Ctrl+,) opens the settings window. It has a category list on the left,
+so far with a single **Canvas** page where the transparency checkerboard is configured:
+the color of the light and dark squares and the square size, with a live preview both in
+the dialog and on the canvas behind it. **Restore defaults** puts the original colors back,
+**Cancel** undoes the preview.
+
+New sections are added by writing another `BuildXxxPage` method in `UI/SettingsDialog.cs`
+and registering it in the `pages` dictionary.
+
 ## Tools
 
 | Key | Tool | What it does |

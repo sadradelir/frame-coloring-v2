@@ -72,6 +72,7 @@ public sealed partial class MainForm : Form
         settings = AppSettings.Load();
 
         BuildUi();
+        ApplyCanvasSettings();
         RebuildPalette();
         RebuildRecentMenu();
         SetTool(EditorTool.Fill);
@@ -760,6 +761,41 @@ public sealed partial class MainForm : Form
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK) settings.ExternalEditorPath = dialog.FileName;
+    }
+
+    private void ShowSettings()
+    {
+        using var dialog = new SettingsDialog(settings);
+
+        // Show every change on the canvas straight away; Cancel puts the old values back.
+        dialog.PreviewChanged += (_, _) =>
+        {
+            var (light, dark, square) = dialog.DialogResult == DialogResult.Cancel
+                ? CanvasSettings()
+                : dialog.Checkerboard;
+            canvas.SetCheckerboard(light, dark, square);
+        };
+
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            ApplyCanvasSettings();
+            settings.Save();
+        }
+        else
+        {
+            ApplyCanvasSettings();
+        }
+    }
+
+    private (Color light, Color dark, int square) CanvasSettings() => (
+        SettingsDialog.ParseColor(settings.CheckerLightColor, AppSettings.DefaultCheckerLight),
+        SettingsDialog.ParseColor(settings.CheckerDarkColor, AppSettings.DefaultCheckerDark),
+        Math.Clamp(settings.CheckerSquareSize, 2, 64));
+
+    private void ApplyCanvasSettings()
+    {
+        var (light, dark, square) = CanvasSettings();
+        canvas.SetCheckerboard(light, dark, square);
     }
 
     private void ShowShortcuts()

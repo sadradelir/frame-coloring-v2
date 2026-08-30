@@ -31,6 +31,9 @@ public sealed class CanvasView : Control
     private bool spaceHeld;
     private bool viewAdjustedByUser;   // stop auto fitting once the user zooms or pans
     private TextureBrush? checkerBrush;
+    private Color checkerLight = Color.FromArgb(70, 74, 80);
+    private Color checkerDark = Color.FromArgb(58, 62, 68);
+    private int checkerSquare = 8;
 
     public CanvasView()
     {
@@ -63,6 +66,18 @@ public sealed class CanvasView : Control
     public Rectangle? CropOverlay { get; set; }
 
     public bool ShowPixelGrid { get; set; } = true;
+
+    /// <summary>Light and dark squares of the transparency checkerboard, and the square size.</summary>
+    public void SetCheckerboard(Color light, Color dark, int squareSize)
+    {
+        checkerLight = light;
+        checkerDark = dark;
+        checkerSquare = Math.Clamp(squareSize, 2, 64);
+
+        checkerBrush?.Dispose();
+        checkerBrush = null;
+        Invalidate();
+    }
 
     public Size ImageSize => surface?.Size ?? Size.Empty;
 
@@ -269,23 +284,29 @@ public sealed class CanvasView : Control
     {
         checkerBrush ??= CreateCheckerBrush();
 
+        int tile = checkerSquare * 2;
         var clip = g.Clip;
         g.SetClip(destination);
-        checkerBrush.TranslateTransform(destination.X % 16, destination.Y % 16);
+        checkerBrush.TranslateTransform(destination.X % tile, destination.Y % tile);
         g.FillRectangle(checkerBrush, destination);
         checkerBrush.ResetTransform();
         g.Clip = clip;
     }
 
-    private static TextureBrush CreateCheckerBrush()
+    private TextureBrush CreateCheckerBrush() => CreateCheckerBrush(checkerLight, checkerDark, checkerSquare);
+
+    /// <summary>Builds the tiling brush for a checkerboard of <paramref name="square"/> sized squares.</summary>
+    public static TextureBrush CreateCheckerBrush(Color light, Color dark, int square)
     {
-        var tile = new Bitmap(16, 16);
+        square = Math.Clamp(square, 2, 64);
+        var tile = new Bitmap(square * 2, square * 2);
+
         using (var tileGraphics = Graphics.FromImage(tile))
         {
-            tileGraphics.Clear(Color.FromArgb(70, 74, 80));
-            using var brush = new SolidBrush(Color.FromArgb(58, 62, 68));
-            tileGraphics.FillRectangle(brush, 0, 0, 8, 8);
-            tileGraphics.FillRectangle(brush, 8, 8, 8, 8);
+            tileGraphics.Clear(light);
+            using var brush = new SolidBrush(dark);
+            tileGraphics.FillRectangle(brush, 0, 0, square, square);
+            tileGraphics.FillRectangle(brush, square, square, square, square);
         }
 
         return new TextureBrush(tile) { WrapMode = WrapMode.Tile };

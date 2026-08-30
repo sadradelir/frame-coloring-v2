@@ -433,6 +433,7 @@ public sealed partial class MainForm
             Menu("Remove Selected From List", Keys.None, RemoveSelectedFromList),
             Menu("Close All", Keys.None, () => CloseAllFrames(askToSave: true)),
             new ToolStripSeparator(),
+            Menu("Settings…", Keys.Control | Keys.Oemcomma, ShowSettings),
             Menu("Exit", Keys.Alt | Keys.F4, Close)
         });
 
