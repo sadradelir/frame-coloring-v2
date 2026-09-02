@@ -125,6 +125,37 @@ The run happens in the background with a progress bar and a Cancel button, and t
 is a single undo step. On a 1401×1550 frame it takes about 40 ms at radius 2 and 120 ms at
 radius 10, so 33 frames land in a couple of seconds.
 
+## Baking a distance field
+
+**Filters ▸ Alpha → Distance Field…** rewrites the alpha channel of the selected frames (or of
+all of them) as a signed distance field, leaving RGB untouched:
+
+```
+alpha = saturate(0.5 + signedDistance / (2 * spread))
+```
+
+Distance in pixels, positive inside the silhouette, linear all the way: alpha 0 one spread
+outside the edge, 128 on the edge, 255 one spread inside. The silhouette is taken where the old
+alpha saturates (`alpha >= 250` by default), not at its midpoint, because a halo ramp reaches 1
+only at the edge.
+
+**Sub-pixel edge fit** (on by default) reconstructs where the edge really falls between pixels
+before measuring: the mask is smoothed into a coverage-like field, its 0.5 isoline gives each
+edge pixel an exact offset, and the nearest point on that isoline is propagated outwards. Against
+exact geometry that lands at a mean error of 0.05px on a 45° edge and 0.13px on a circle, versus
+0.15px and 0.27px straight from the binary mask — under the 0.19px the 8 bit alpha can store.
+Supersampling the mask instead (the classic trick) does not help here: replicating pixels adds no
+information about where the edge sits, and measured 0.28px / 0.35px on the same tests. It is still
+available for comparison when the fit is off.
+
+**Verify** (also on the Filters menu on its own) prints a report for a frame: it picks a scanline
+whose body is deep enough, then checks alpha on the silhouette, one spread out, one spread in,
+that the ramp is monotonic and that every step is 255/(2·spread) ± 1.
+
+A bake takes about 0.7s per 1401×1550 frame with the fit, 0.12s without, runs in the background
+with a Cancel button, and the whole batch is one undo step. Baking a frame twice would measure
+the field instead of the sprite, so undo rather than re-run.
+
 ## Canvas
 
 - Mouse wheel zooms at the cursor, Ctrl/Shift + wheel steps through frames

@@ -817,6 +817,109 @@ public sealed partial class MainForm : Form
             (document, token) => mapped.ApplyMap(document.Image, reversed, strength, token));
     }
 
+    private async void BakeDistanceField()
+    {
+        if (session.Count == 0)
+        {
+            SetStatusMessage("Open some frames first.");
+            return;
+        }
+
+        var selected = SelectedDocuments();
+        using var dialog = new DistanceFieldDialog(settings.DistanceFieldSpread,
+            (byte)Math.Clamp(settings.DistanceFieldSolidThreshold, 1, 255),
+            settings.DistanceFieldSupersample, settings.DistanceFieldSubPixelEdge,
+            settings.DistanceFieldVerify, selected.Count, session.Count);
+
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        settings.DistanceFieldSpread = dialog.Spread;
+        settings.DistanceFieldSolidThreshold = dialog.SolidThreshold;
+        settings.DistanceFieldSupersample = dialog.Supersample;
+        settings.DistanceFieldSubPixelEdge = dialog.SubPixelEdge;
+        settings.DistanceFieldVerify = dialog.Verify;
+
+        var targets = dialog.ApplyToAllFrames ? session.Documents.ToList() : selected;
+        if (targets.Count == 0)
+        {
+            SetStatusMessage("Select at least one frame first.");
+            return;
+        }
+
+        float spread = dialog.Spread;
+        byte threshold = dialog.SolidThreshold;
+        int supersample = dialog.SubPixelEdge ? 1 : dialog.Supersample;
+        bool subPixelEdge = dialog.SubPixelEdge;
+
+        await RunOnFrames("Distance field", targets,
+            (document, token) =>
+                DistanceFieldBaker.Bake(document.Image, spread, threshold, supersample, subPixelEdge, token));
+
+        if (!dialog.Verify) return;
+
+        ShowReport($"Distance field · {targets[0].FileName}",
+            DistanceFieldBaker.Verify(targets[0].Image, spread));
+    }
+
+    private void VerifyDistanceField()
+    {
+        var primary = PrimaryDocument();
+        if (primary == null)
+        {
+            SetStatusMessage("Select a frame first.");
+            return;
+        }
+
+        ShowReport($"Distance field · {primary.FileName}",
+            DistanceFieldBaker.Verify(primary.Image, settings.DistanceFieldSpread));
+    }
+
+    /// <summary>A read only, selectable text window, for reports that do not fit a message box.</summary>
+    private void ShowReport(string title, string text)
+    {
+        using var window = new Form
+        {
+            Text = title,
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(560, 300),
+            MinimizeBox = false,
+            BackColor = Theme.Background,
+            ForeColor = Theme.Text,
+            Font = Theme.UiFont
+        };
+
+        var box = new TextBox
+        {
+            Dock = DockStyle.Fill,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = false,
+            BackColor = Theme.Surface,
+            ForeColor = Theme.Text,
+            BorderStyle = BorderStyle.None,
+            Font = new Font(FontFamily.GenericMonospace, 9f),
+            Text = text
+        };
+
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 44, BackColor = Theme.Background };
+        var close = new Button
+        {
+            Location = new Point(470, 8),
+            Size = new Size(76, 28),
+            Text = "Close",
+            DialogResult = DialogResult.OK,
+            Anchor = AnchorStyles.Right | AnchorStyles.Top
+        };
+        Theme.StyleButton(close, primary: true);
+        footer.Controls.Add(close);
+
+        window.Controls.Add(box);
+        window.Controls.Add(footer);
+        window.AcceptButton = close;
+        window.ShowDialog(this);
+    }
+
     private Gradient LoadGradientFromSettings()
     {
         if (settings.GradientMapStops.Count < 2) return new Gradient();

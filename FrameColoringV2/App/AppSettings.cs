@@ -47,6 +47,11 @@ public sealed class AppSettings
     public List<GradientStopSetting> GradientMapStops { get; set; } = new();
     public bool GradientMapReverse { get; set; }
     public int GradientMapAmount { get; set; } = 100;
+    public float DistanceFieldSpread { get; set; } = 24f;
+    public int DistanceFieldSolidThreshold { get; set; } = 250;
+    public int DistanceFieldSupersample { get; set; } = 1;
+    public bool DistanceFieldSubPixelEdge { get; set; } = true;
+    public bool DistanceFieldVerify { get; set; } = true;
     public string ExternalEditorPath { get; set; } = @"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe";
     public bool ReopenLastFolder { get; set; } = true;
     public int SidebarWidth { get; set; } = 360;

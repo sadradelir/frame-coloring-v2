@@ -544,7 +544,7 @@ public sealed partial class MainForm
         toolsMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
             Menu("Empower Alpha", Keys.None, () => ApplyToSelected("Empower", image => FrameOps.Empower(image))),
-            Menu("Drop Shadow (SDF)", Keys.None, () => ApplyToSelected("SDF", image => FrameOps.SDF(image))),
+            Menu("Drop Shadow", Keys.None, () => ApplyToSelected("SDF", image => FrameOps.SDF(image))),
             Menu("Trim To Content", Keys.None, TrimSelected),
             Menu("Flip Horizontally", Keys.None, () => ApplyToSelected("Flip", image =>
                 image.Mutate(context => context.Flip(FlipMode.Horizontal)))),
@@ -561,7 +561,10 @@ public sealed partial class MainForm
         {
             Menu("Curves…", Keys.Control | Keys.Shift | Keys.C, ApplyCurves),
             Menu("Gradient Map…", Keys.Control | Keys.G, ApplyGradientMap),
-            Menu("Median…", Keys.Control | Keys.M, ApplyMedianFilter)
+            Menu("Median…", Keys.Control | Keys.M, ApplyMedianFilter),
+            new ToolStripSeparator(),
+            Menu("Alpha → Distance Field…", Keys.None, BakeDistanceField),
+            Menu("Verify Distance Field", Keys.None, VerifyDistanceField)
         });
 
         var helpMenu = new ToolStripMenuItem("Help");
