@@ -13,6 +13,12 @@ public sealed class PaletteEntry
 /// User settings, stored in %AppData%\FrameColoringV2\settings.json so the app keeps
 /// working no matter which folder the executable sits in.
 /// </summary>
+public sealed class GradientStopSetting
+{
+    public float Position { get; set; }
+    public string Hex { get; set; } = "#000000";
+}
+
 public sealed class AppSettings
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -38,6 +44,9 @@ public sealed class AppSettings
     public bool AutoNextFrame { get; set; }
     public int MedianRadius { get; set; } = 2;
     public bool MedianIgnoreTransparent { get; set; } = true;
+    public List<GradientStopSetting> GradientMapStops { get; set; } = new();
+    public bool GradientMapReverse { get; set; }
+    public int GradientMapAmount { get; set; } = 100;
     public string ExternalEditorPath { get; set; } = @"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe";
     public bool ReopenLastFolder { get; set; } = true;
     public int SidebarWidth { get; set; } = 360;

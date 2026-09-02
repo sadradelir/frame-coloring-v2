@@ -560,6 +560,7 @@ public sealed partial class MainForm
         filtersMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
             Menu("Curves…", Keys.Control | Keys.Shift | Keys.C, ApplyCurves),
+            Menu("Gradient Map…", Keys.Control | Keys.G, ApplyGradientMap),
             Menu("Median…", Keys.Control | Keys.M, ApplyMedianFilter)
         });
 

@@ -103,6 +103,14 @@ Apply writes it to the selected frames or to all open frames as a single undo st
 transparent pixels are left alone, so lifting the blacks cannot make a halo appear around the
 sprite.
 
+**Filters ▸ Gradient Map…** (Ctrl+G) recolours the frames through a ramp: the brightness of
+each pixel picks a colour, darks from the left end and lights from the right one, exactly like
+Photoshop's Gradient Map. Click the strip to add a stop, drag it to move, double click it to
+pick a colour, right click to remove it. There are a few presets (sepia, fire, cold steel,
+toxic, violet dusk…), a **Reverse** switch, **Swap ends** to mirror the stops, and an **Amount**
+slider that blends between the original colours and the mapped ones. Alpha is untouched, so the
+sprite keeps its shape.
+
 **Filters ▸ Median…** (Ctrl+M) is the same filter as Photoshop's Noise ▸ Median: every pixel
 becomes the median of its neighbours inside a disc of the chosen radius. It kills stray pixels
 and rounds off jagged anti-aliased edges while keeping hard colour borders where they are,

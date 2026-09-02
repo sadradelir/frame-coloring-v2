@@ -73,7 +73,7 @@ public sealed partial class MainForm : Form
     private bool paintingStroke;
 
     // Rendering.
-    private CurveSet? previewCurves;   // curves shown on the canvas while the dialog is open
+    private Action<Image<Rgba32>>? previewAdjustment;   // shown on the canvas while a filter dialog is open
     private Image<Rgba32>? composite;
     private Bitmap? displayBitmap;
 
@@ -720,13 +720,14 @@ public sealed partial class MainForm : Form
 
         dialog.PreviewChanged += (_, _) =>
         {
-            previewCurves = dialog.PreviewCurves;
+            var preview = dialog.PreviewCurves;
+            previewAdjustment = preview == null ? null : image => preview.Apply(image);
             RefreshCanvas();
         };
 
         var result = dialog.ShowDialog(this);
 
-        previewCurves = null;
+        previewAdjustment = null;
         RefreshCanvas();
 
         if (result != DialogResult.OK) return;
@@ -747,6 +748,88 @@ public sealed partial class MainForm : Form
         // Snapshot the curves so later edits of the dialog object cannot change the batch.
         var curves = dialog.Curves.Clone();
         await RunOnFrames("Curves", targets, (document, token) => curves.Apply(document.Image, token));
+    }
+
+    private async void ApplyGradientMap()
+    {
+        if (session.Count == 0)
+        {
+            SetStatusMessage("Open some frames first.");
+            return;
+        }
+
+        var selected = SelectedDocuments();
+        using var dialog = new GradientMapDialog(LoadGradientFromSettings(), settings.GradientMapReverse,
+            settings.GradientMapAmount, selected.Count, session.Count);
+
+        dialog.PreviewChanged += (_, _) =>
+        {
+            if (!dialog.PreviewEnabled)
+            {
+                previewAdjustment = null;
+            }
+            else
+            {
+                var gradient = dialog.Gradient.Clone();
+                bool reverse = dialog.Reverse;
+                float amount = dialog.Amount;
+                previewAdjustment = image => gradient.ApplyMap(image, reverse, amount);
+            }
+
+            RefreshCanvas();
+        };
+
+        var result = dialog.ShowDialog(this);
+
+        previewAdjustment = null;
+        RefreshCanvas();
+
+        if (result != DialogResult.OK) return;
+
+        settings.GradientMapStops = dialog.Gradient.Stops
+            .Select(stop => new GradientStopSetting
+            {
+                Position = stop.Position,
+                Hex = $"#{stop.Color.R:x2}{stop.Color.G:x2}{stop.Color.B:x2}"
+            })
+            .ToList();
+        settings.GradientMapReverse = dialog.Reverse;
+        settings.GradientMapAmount = dialog.AmountPercent;
+
+        if (dialog.AmountPercent == 0)
+        {
+            SetStatusMessage("Gradient map amount was 0%, nothing changed.");
+            return;
+        }
+
+        var targets = dialog.ApplyToAllFrames ? session.Documents.ToList() : selected;
+        if (targets.Count == 0)
+        {
+            SetStatusMessage("Select at least one frame first.");
+            return;
+        }
+
+        var mapped = dialog.Gradient.Clone();
+        bool reversed = dialog.Reverse;
+        float strength = dialog.Amount;
+
+        await RunOnFrames("Gradient map", targets,
+            (document, token) => mapped.ApplyMap(document.Image, reversed, strength, token));
+    }
+
+    private Gradient LoadGradientFromSettings()
+    {
+        if (settings.GradientMapStops.Count < 2) return new Gradient();
+
+        try
+        {
+            return new Gradient(settings.GradientMapStops
+                .Select(stop => new GradientStop(stop.Position, Rgba32.ParseHex(stop.Hex))));
+        }
+        catch (Exception)
+        {
+            return new Gradient();
+        }
     }
 
     private async void ApplyMedianFilter()
@@ -1340,12 +1423,12 @@ public sealed partial class MainForm : Form
             FrameOps.ClearTransparent(composite);
         }
 
-        // While the Curves dialog is open the frame is shown adjusted without touching the document.
+        // While a filter dialog is open the frame is shown adjusted without touching the document.
         Image<Rgba32>? preview = null;
-        if (previewCurves != null)
+        if (previewAdjustment != null)
         {
             preview = primary.Image.Clone();
-            previewCurves.Apply(preview);
+            previewAdjustment(preview);
         }
 
         composite.Mutate(context =>
