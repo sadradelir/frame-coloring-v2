@@ -234,3 +234,7 @@ and registering it in the `pages` dictionary.
 
 Issues and pull requests are welcome. Please describe the sprite workflow you're trying to speed
 up — that's what this tool is for.
+
+## License
+
+[MIT](LICENSE) — free to use, modify and share, including in commercial projects.
