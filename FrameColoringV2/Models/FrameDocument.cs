@@ -26,6 +26,9 @@ public sealed class FrameDocument : IDisposable
 
     public bool IsDirty { get; private set; }
 
+    /// <summary>Starred by the user: this frame is finished and Auto next skips over it.</summary>
+    public bool IsDone { get; set; }
+
     public string DisplayName => IsDirty ? FileName + " *" : FileName;
 
     public static FrameDocument Load(string path) => new(path, SImage.Load<Rgba32>(path));

@@ -16,8 +16,36 @@ public static class Theme
     public static readonly Color Danger = Color.FromArgb(200, 80, 80);
     public static readonly Color CanvasBack = Color.FromArgb(24, 26, 29);
 
-    public static readonly Font UiFont = new("Segoe UI", 9f);
-    public static readonly Font UiFontBold = new("Segoe UI", 9f, FontStyle.Bold);
+    public const float BaseFontSize = 9f;
+
+    /// <summary>
+    /// How much bigger the interface is drawn than the design size. Set once from the
+    /// settings before the first window is built; everything else reads it through
+    /// <see cref="Px"/>, <see cref="UiFont"/> and the icon sizes.
+    /// </summary>
+    public static float Scale { get; private set; } = 1f;
+
+    public static Font UiFont { get; private set; } = new("Segoe UI", BaseFontSize);
+    public static Font UiFontBold { get; private set; } = new("Segoe UI", BaseFontSize, FontStyle.Bold);
+
+    public static void SetScale(float scale)
+    {
+        Scale = Math.Clamp(scale, 1f, 2f);
+
+        UiFont.Dispose();
+        UiFontBold.Dispose();
+        UiFont = new Font("Segoe UI", BaseFontSize * Scale);
+        UiFontBold = new Font("Segoe UI", BaseFontSize * Scale, FontStyle.Bold);
+    }
+
+    /// <summary>Scales a hand-picked pixel size to the current interface scale.</summary>
+    public static int Px(int designPixels) => (int)Math.Round(designPixels * Scale);
+
+    /// <summary>Grows a dialog that was laid out at scale 1 so its boxes match the bigger font.</summary>
+    public static void ScaleForm(Form form)
+    {
+        if (Scale > 1f) form.Scale(new SizeF(Scale, Scale));
+    }
 
     public static void ApplyTo(Control root)
     {

@@ -1,4 +1,4 @@
-using FrameColoringV2.App;
+﻿using FrameColoringV2.App;
 using FrameColoringV2.Imaging;
 using SixLabors.ImageSharp.Processing;
 
@@ -11,8 +11,14 @@ public sealed partial class MainForm
         SuspendLayout();
 
         Text = "Frame Coloring";
-        MinimumSize = new Size(1000, 640);
-        Size = new Size(1500, 940);
+        // Scaled up, the design size can outgrow the screen, so keep the window on it.
+        var workingArea = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 800);
+        MinimumSize = new Size(
+            Math.Min(Theme.Px(1000), workingArea.Width),
+            Math.Min(Theme.Px(640), workingArea.Height));
+        Size = new Size(
+            Math.Min(Theme.Px(1500), workingArea.Width),
+            Math.Min(Theme.Px(940), workingArea.Height));
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
@@ -51,15 +57,15 @@ public sealed partial class MainForm
 
         var sidebar = BuildSidebar();
         sidebar.Dock = DockStyle.Right;
-        sidebar.Width = Math.Clamp(settings.SidebarWidth, 300, 640);
+        sidebar.Width = Math.Clamp(settings.SidebarWidth, Theme.Px(300), Theme.Px(700));
 
         var splitter = new Splitter
         {
             Dock = DockStyle.Right,
-            Width = 4,
+            Width = Theme.Px(4),
             BackColor = Theme.Border,
-            MinExtra = 320,
-            MinSize = 300
+            MinExtra = Theme.Px(320),
+            MinSize = Theme.Px(300)
         };
         splitter.SplitterMoved += (_, _) => settings.SidebarWidth = sidebar.Width;
 
@@ -78,19 +84,21 @@ public sealed partial class MainForm
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 5,
             BackColor = Theme.Background,
-            Padding = new Padding(10, 8, 10, 8)
+            Padding = new Padding(Theme.Px(10), Theme.Px(8), Theme.Px(10), Theme.Px(8))
         };
         sidebar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, 230));
+        sidebar.RowStyles.Add(new RowStyle(SizeType.Absolute, Theme.Px(230)));
         sidebar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         sidebar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        sidebar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         sidebar.Controls.Add(BuildColorCard(), 0, 0);
         sidebar.Controls.Add(BuildPalettePanel(), 0, 1);
         sidebar.Controls.Add(BuildFramesHeader(), 0, 2);
         sidebar.Controls.Add(BuildFramesList(), 0, 3);
+        sidebar.Controls.Add(BuildFramesActionBar(), 0, 4);
 
         return sidebar;
     }
@@ -100,19 +108,19 @@ public sealed partial class MainForm
         var card = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 130,
+            Height = Theme.Px(130),
             BackColor = Theme.Surface,
             Padding = new Padding(10),
             Margin = new Padding(0, 0, 0, 8)
         };
 
         // Opacity sits at the bottom, the color row fills whatever is left.
-        var opacityPanel = new Panel { Dock = DockStyle.Bottom, Height = 58 };
+        var opacityPanel = new Panel { Dock = DockStyle.Bottom, Height = Theme.Px(58) };
 
         opacityLabel = new Label
         {
             Dock = DockStyle.Top,
-            Height = 18,
+            Height = Theme.Px(18),
             Text = "Opacity 255",
             ForeColor = Theme.TextDim
         };
@@ -140,7 +148,7 @@ public sealed partial class MainForm
         colorPreview = new Panel
         {
             Dock = DockStyle.Left,
-            Width = 56,
+            Width = Theme.Px(56),
             BackColor = Color.Black,
             BorderStyle = BorderStyle.FixedSingle,
             Margin = new Padding(0, 0, 8, 0)
@@ -152,7 +160,7 @@ public sealed partial class MainForm
         colorHexLabel = new Label
         {
             Dock = DockStyle.Top,
-            Height = 20,
+            Height = Theme.Px(20),
             Text = "#000000",
             Font = Theme.UiFontBold
         };
@@ -161,7 +169,7 @@ public sealed partial class MainForm
         var buttonRow = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 28,
+            Height = Theme.Px(28),
             ColumnCount = 2,
             RowCount = 1
         };
@@ -215,7 +223,7 @@ public sealed partial class MainForm
         var header = new Label
         {
             Dock = DockStyle.Top,
-            Height = 22,
+            Height = Theme.Px(22),
             Text = "PALETTE",
             ForeColor = Theme.TextDim,
             Font = Theme.UiFontBold
@@ -232,14 +240,14 @@ public sealed partial class MainForm
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 30,
+            Height = Theme.Px(30),
             ColumnCount = 4,
             RowCount = 1,
             BackColor = Theme.Background,
             Margin = new Padding(0, 0, 0, 4)
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        for (int i = 0; i < 3; i++) header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 66));
+        for (int i = 0; i < 3; i++) header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, Theme.Px(34)));
 
         var title = new Label
         {
@@ -250,18 +258,21 @@ public sealed partial class MainForm
             TextAlign = ContentAlignment.MiddleLeft
         };
 
-        var selectAll = new Button { Dock = DockStyle.Fill, Text = "All", Margin = new Padding(2, 1, 2, 1) };
-        selectAll.Click += (_, _) => SetSelection(Enumerable.Range(0, framesList.Items.Count));
+        var selectAll = IconButton("select-all", "Select every frame", () => SetSelection(Enumerable.Range(0, framesList.Items.Count)));
+        selectAll.Dock = DockStyle.Fill;
+        selectAll.Margin = new Padding(2, 1, 2, 1);
 
-        var selectNone = new Button { Dock = DockStyle.Fill, Text = "None", Margin = new Padding(2, 1, 2, 1) };
-        selectNone.Click += (_, _) => SetSelection(Enumerable.Empty<int>());
+        var selectNone = IconButton("select-none", "Clear the selection", () => SetSelection(Enumerable.Empty<int>()));
+        selectNone.Dock = DockStyle.Fill;
+        selectNone.Margin = new Padding(2, 1, 2, 1);
 
-        var invert = new Button { Dock = DockStyle.Fill, Text = "Invert", Margin = new Padding(2, 1, 0, 1) };
-        invert.Click += (_, _) =>
+        var invert = IconButton("select-invert", "Invert the selection", () =>
         {
             var selected = framesList.SelectedIndices.Cast<int>().ToHashSet();
             SetSelection(Enumerable.Range(0, framesList.Items.Count).Where(i => !selected.Contains(i)));
-        };
+        });
+        invert.Dock = DockStyle.Fill;
+        invert.Margin = new Padding(2, 1, 0, 1);
 
         header.Controls.Add(title, 0, 0);
         header.Controls.Add(selectAll, 1, 0);
@@ -285,6 +296,15 @@ public sealed partial class MainForm
             ForeColor = Theme.Text,
             BorderStyle = BorderStyle.None
         };
+        framesIcons = new ImageList
+        {
+            ImageSize = new Size(Icons.Small, Icons.Small),
+            ColorDepth = ColorDepth.Depth32Bit
+        };
+        framesIcons.Images.Add("none", new Bitmap(Icons.Small, Icons.Small));       // keeps unstarred rows aligned
+        framesIcons.Images.Add("done", Icons.Get("star", Icons.Small, Icons.Star));
+        framesList.SmallImageList = framesIcons;
+
         framesList.Columns.Add("Frame", -2);
         framesList.SelectedIndexChanged += (_, _) =>
         {
@@ -306,9 +326,55 @@ public sealed partial class MainForm
             var item = framesList.GetItemAt(e.X, e.Y);
             if (item != null && !item.Selected) SetSelection(new[] { item.Index });
         };
+        framesList.DoubleClick += (_, _) => ToggleDoneOnSelection();
         framesList.ContextMenuStrip = BuildFramesContextMenu();
 
         return framesList;
+    }
+
+    /// <summary>The row of icon buttons under the frame list: star what is finished, then move on.</summary>
+    private Control BuildFramesActionBar()
+    {
+        var bar = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            BackColor = Theme.Surface,
+            Padding = new Padding(4),
+            Margin = new Padding(0, 4, 0, 0)
+        };
+
+        starButton = IconButton("star-outline", "Star the selected frames as finished (S)", ToggleDoneOnSelection);
+
+        bar.Controls.Add(starButton);
+        bar.Controls.Add(IconButton("next", "Go to the next frame that is not starred yet", JumpToNextPendingFrame));
+        bar.Controls.Add(IconButton("star-clear", "Clear every star in this folder", ClearAllDone));
+        bar.Controls.Add(new Label { Width = Theme.Px(10), Height = 1, Margin = new Padding(0) });
+        bar.Controls.Add(IconButton("save", "Save the selected frames", SaveSelected));
+        bar.Controls.Add(IconButton("reload", "Reload the selected frames from disk", ReloadSelected));
+        bar.Controls.Add(IconButton("trash", "Remove the selected frames from the list", RemoveSelectedFromList));
+
+        return bar;
+    }
+
+    /// <summary>A square, flat button that shows an icon and explains itself through its tooltip.</summary>
+    private Button IconButton(string icon, string tooltip, Action onClick)
+    {
+        var button = new Button
+        {
+            Width = Theme.Px(30),
+            Height = Theme.Px(26),
+            Text = string.Empty,
+            Image = Icons.Get(icon, Icons.Small),
+            Margin = new Padding(0, 0, 4, 0)
+        };
+
+        Theme.StyleButton(button);
+        toolTips.SetToolTip(button, tooltip);
+        button.Click += (_, _) => onClick();
+        return button;
     }
 
     private ContextMenuStrip BuildFramesContextMenu()
@@ -329,9 +395,15 @@ public sealed partial class MainForm
         var reveal = new ToolStripMenuItem("Show In File Explorer", null, (_, _) => RevealInFileExplorer());
         var copyPath = new ToolStripMenuItem("Copy Full Path", null, (_, _) => CopySelectedPaths());
         var remove = new ToolStripMenuItem("Remove From List", null, (_, _) => RemoveSelectedFromList());
+        var toggleDone = new ToolStripMenuItem("Star As Finished", null, (_, _) => ToggleDoneOnSelection())
+        {
+            ShortcutKeyDisplayString = "S"
+        };
 
         menu.Items.AddRange(new ToolStripItem[]
         {
+            toggleDone,
+            new ToolStripSeparator(),
             save, saveAs, export,
             new ToolStripSeparator(),
             reload,
@@ -350,7 +422,13 @@ public sealed partial class MainForm
                 return;
             }
 
-            save.Enabled = SelectedDocuments().Any(document => document.IsDirty);
+            var documents = SelectedDocuments();
+            bool allDone = documents.Count > 0 && documents.All(document => document.IsDone);
+            toggleDone.Text = allDone
+                ? count == 1 ? "Remove Star" : $"Remove {count} Stars"
+                : count == 1 ? "Star As Finished" : $"Star {count} Frames As Finished";
+
+            save.Enabled = documents.Any(document => document.IsDirty);
             saveAs.Text = count == 1 ? "Save As…" : $"Save {count} Frames As…";
             copyPath.Text = count == 1 ? "Copy Full Path" : $"Copy {count} Full Paths";
             remove.Text = count == 1 ? "Remove From List" : $"Remove {count} From List";
@@ -365,19 +443,19 @@ public sealed partial class MainForm
         {
             Dock = DockStyle.Top,
             GripStyle = ToolStripGripStyle.Hidden,
-            Padding = new Padding(6, 4, 6, 4),
+            Padding = new Padding(Theme.Px(6), Theme.Px(4), Theme.Px(6), Theme.Px(4)),
             Renderer = new DarkStripRenderer(),
             BackColor = Theme.Surface,
             ForeColor = Theme.Text,
-            ImageScalingSize = new Size(16, 16)
+            ImageScalingSize = new Size(Icons.Toolbar, Icons.Toolbar)
         };
 
-        fillToolButton = CreateToolButton("Fill", EditorTool.Fill, "Flood fill the clicked area (F)");
-        replaceToolButton = CreateToolButton("Replace", EditorTool.ReplaceFill, "Recolor the clicked key color, keeping shading (R)");
-        brushToolButton = CreateToolButton("Brush", EditorTool.Brush, "Paint with the current color (B)");
-        eraserToolButton = CreateToolButton("Eraser", EditorTool.Eraser, "Erase to transparent (E)");
-        pickerToolButton = CreateToolButton("Picker", EditorTool.Picker, "Pick a color from the frame (I)");
-        cropToolButton = CreateToolButton("Crop", EditorTool.Crop, "Drag the corners, then Apply Crop (C)");
+        fillToolButton = CreateToolButton("Fill", "fill", EditorTool.Fill, "Fill — flood fill the clicked area (F)");
+        replaceToolButton = CreateToolButton("Replace", "replace", EditorTool.ReplaceFill, "Replace fill — recolor the clicked key color, keeping shading (R)");
+        brushToolButton = CreateToolButton("Brush", "brush", EditorTool.Brush, "Brush — paint with the current color, behind the line art by default (B)");
+        eraserToolButton = CreateToolButton("Eraser", "eraser", EditorTool.Eraser, "Eraser — erase to transparent (E)");
+        pickerToolButton = CreateToolButton("Picker", "picker", EditorTool.Picker, "Picker — pick a color from the frame (I)");
+        cropToolButton = CreateToolButton("Crop", "crop", EditorTool.Crop, "Crop — drag the corners, then apply (C)");
 
         toolStrip.Items.AddRange(new ToolStripItem[]
         {
@@ -395,7 +473,7 @@ public sealed partial class MainForm
             Minimum = 1,
             Maximum = 64,
             Value = settings.BrushSize,
-            Width = 50,
+            Width = Theme.Px(50),
             BackColor = Theme.SurfaceAlt,
             ForeColor = Theme.Text,
             BorderStyle = BorderStyle.None
@@ -407,12 +485,31 @@ public sealed partial class MainForm
         toolStrip.Items.Add(brushSizeLabel);
         toolStrip.Items.Add(brushSizeHost);
 
+        brushBehindItem = new ToolStripMenuItem("Behind — transparent pixels only")
+        {
+            ToolTipText = "Lays the color under what is already drawn, so the line art is safe"
+        };
+        brushBehindItem.Click += (_, _) => SetBrushMode(BrushMode.Behind);
+
+        brushOverItem = new ToolStripMenuItem("Over everything")
+        {
+            ToolTipText = "Paints on top of every pixel, like an ordinary brush"
+        };
+        brushOverItem.Click += (_, _) => SetBrushMode(BrushMode.Over);
+
+        brushModeButton = new ToolStripDropDownButton { ForeColor = Theme.Text };
+        brushModeButton.DropDownItems.Add(brushBehindItem);
+        brushModeButton.DropDownItems.Add(brushOverItem);
+        toolStrip.Items.Add(brushModeButton);
+
+        RefreshBrushMode();
+
         fillToleranceUpDown = new NumericUpDown
         {
             Minimum = 0,
             Maximum = 20,
             Value = settings.FillTolerance,
-            Width = 50,
+            Width = Theme.Px(50),
             BackColor = Theme.SurfaceAlt,
             ForeColor = Theme.Text,
             BorderStyle = BorderStyle.None
@@ -424,28 +521,48 @@ public sealed partial class MainForm
         toolStrip.Items.Add(fillBleedLabel);
         toolStrip.Items.Add(fillBleedHost);
 
-        autoNextButton = new ToolStripButton("Auto next")
+        autoNextButton = StripIconButton("Auto next", "next", "Auto next — after a fill, jump to the next unstarred frame");
+        autoNextButton.CheckOnClick = true;
+        autoNextButton.Checked = settings.AutoNextFrame;
+        autoNextButton.CheckedChanged += (_, _) =>
         {
-            CheckOnClick = true,
-            Checked = settings.AutoNextFrame,
-            ForeColor = Theme.Text,
-            ToolTipText = "After a fill, jump to the next frame in the list"
+            settings.AutoNextFrame = autoNextButton.Checked;
+            UpdateToolOptions();
         };
-        autoNextButton.CheckedChanged += (_, _) => settings.AutoNextFrame = autoNextButton.Checked;
         toolStrip.Items.Add(autoNextButton);
 
-        applyCropButton = new ToolStripButton("Apply Crop") { ForeColor = Theme.Text };
+        autoNextImmediateItem = new ToolStripMenuItem("Immediate")
+        {
+            ToolTipText = "Jump to the next frame as soon as the fill is applied"
+        };
+        autoNextImmediateItem.Click += (_, _) => SetAutoNextMode(AutoNextMode.Immediate);
+
+        autoNextDelayedItem = new ToolStripMenuItem($"Delayed ({AppSettings.DefaultAutoNextDelayMs} ms)")
+        {
+            ToolTipText = "Stay on the frame for a moment first, so the fill can be checked"
+        };
+        autoNextDelayedItem.Click += (_, _) => SetAutoNextMode(AutoNextMode.Delayed);
+
+        autoNextModeButton = new ToolStripDropDownButton
+        {
+            ForeColor = Theme.Text,
+            ToolTipText = "When Auto next moves on"
+        };
+        autoNextModeButton.DropDownItems.Add(autoNextImmediateItem);
+        autoNextModeButton.DropDownItems.Add(autoNextDelayedItem);
+        toolStrip.Items.Add(autoNextModeButton);
+
+        RefreshAutoNextMode();
+
+        applyCropButton = StripIconButton("Apply Crop", "check", "Apply the crop to the selected frames");
         applyCropButton.Click += (_, _) => ApplyCrop();
         toolStrip.Items.Add(applyCropButton);
 
         toolStrip.Items.Add(new ToolStripSeparator());
 
-        onionSkinButton = new ToolStripButton("Onion skin")
-        {
-            CheckOnClick = true,
-            Checked = settings.OnionSkin,
-            ForeColor = Theme.Text
-        };
+        onionSkinButton = StripIconButton("Onion skin", "onion", "Onion skin — show the other selected frames underneath");
+        onionSkinButton.CheckOnClick = true;
+        onionSkinButton.Checked = settings.OnionSkin;
         onionSkinButton.CheckedChanged += (_, _) =>
         {
             settings.OnionSkin = onionSkinButton.Checked;
@@ -454,13 +571,13 @@ public sealed partial class MainForm
         };
         toolStrip.Items.Add(onionSkinButton);
 
-        var zoomOut = new ToolStripButton("Zoom −") { ForeColor = Theme.Text };
+        var zoomOut = StripIconButton("Zoom out", "zoom-out", "Zoom out");
         zoomOut.Click += (_, _) => canvas.ZoomTo(canvas.Zoom / 1.25);
-        var zoomIn = new ToolStripButton("Zoom +") { ForeColor = Theme.Text };
+        var zoomIn = StripIconButton("Zoom in", "zoom-in", "Zoom in");
         zoomIn.Click += (_, _) => canvas.ZoomTo(canvas.Zoom * 1.25);
-        var zoomFit = new ToolStripButton("Fit") { ForeColor = Theme.Text };
+        var zoomFit = StripIconButton("Fit", "fit", "Fit the frame to the window");
         zoomFit.Click += (_, _) => canvas.FitToWindow();
-        var zoom100 = new ToolStripButton("100%") { ForeColor = Theme.Text };
+        var zoom100 = StripIconButton("100%", "actual-size", "Zoom to 100%");
         zoom100.Click += (_, _) => canvas.ZoomTo(1.0);
 
         toolStrip.Items.AddRange(new ToolStripItem[] { new ToolStripSeparator(), zoomOut, zoomIn, zoomFit, zoom100 });
@@ -468,16 +585,30 @@ public sealed partial class MainForm
         return toolStrip;
     }
 
-    private ToolStripButton CreateToolButton(string text, EditorTool tool, string tooltip)
+    private ToolStripButton CreateToolButton(string text, string icon, EditorTool tool, string tooltip)
     {
-        var button = new ToolStripButton(text)
+        var button = new ToolStripButton(text, Icons.Get(icon))
         {
+            DisplayStyle = ToolStripItemDisplayStyle.Image,
+            AutoToolTip = false,
             ToolTipText = tooltip,
             ForeColor = Theme.Text,
             Tag = tool
         };
         button.Click += (_, _) => SetTool(tool);
         return button;
+    }
+
+    /// <summary>Icon-only strip button. The label stays on the item so the tooltip can spell it out.</summary>
+    private static ToolStripButton StripIconButton(string text, string icon, string tooltip)
+    {
+        return new ToolStripButton(text, Icons.Get(icon))
+        {
+            DisplayStyle = ToolStripItemDisplayStyle.Image,
+            AutoToolTip = false,
+            ToolTipText = tooltip,
+            ForeColor = Theme.Text
+        };
     }
 
     private MenuStrip BuildMenu()
@@ -593,8 +724,8 @@ public sealed partial class MainForm
 
         statusFile = new ToolStripStatusLabel("No frames open") { ForeColor = Theme.Text, Spring = true, TextAlign = ContentAlignment.MiddleLeft };
         statusSize = new ToolStripStatusLabel("—") { ForeColor = Theme.TextDim };
-        statusCursor = new ToolStripStatusLabel("—") { ForeColor = Theme.TextDim, AutoSize = false, Width = 110, TextAlign = ContentAlignment.MiddleRight };
-        statusZoom = new ToolStripStatusLabel("100%") { ForeColor = Theme.TextDim, AutoSize = false, Width = 70, TextAlign = ContentAlignment.MiddleRight };
+        statusCursor = new ToolStripStatusLabel("—") { ForeColor = Theme.TextDim, AutoSize = false, Width = Theme.Px(110), TextAlign = ContentAlignment.MiddleRight };
+        statusZoom = new ToolStripStatusLabel("100%") { ForeColor = Theme.TextDim, AutoSize = false, Width = Theme.Px(70), TextAlign = ContentAlignment.MiddleRight };
         statusDirty = new ToolStripStatusLabel(string.Empty) { ForeColor = Theme.Accent };
 
         strip.Items.AddRange(new ToolStripItem[] { statusFile, statusDirty, statusSize, statusCursor, statusZoom });
@@ -619,7 +750,7 @@ public sealed partial class MainForm
 
             var swatch = new Button
             {
-                Size = new Size(84, 30),
+                Size = new Size(Theme.Px(84), Theme.Px(30)),
                 Margin = new Padding(3),
                 Text = entry.Name,
                 BackColor = color,

@@ -218,4 +218,10 @@ public sealed class CurvesDialog : Form
     }
 
     private void RaisePreview() => PreviewChanged?.Invoke(this, EventArgs.Empty);
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Theme.ScaleForm(this);   // laid out at scale 1, grown to the user's interface scale
+    }
 }

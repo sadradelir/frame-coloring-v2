@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace FrameColoringV2.App;
@@ -13,6 +13,26 @@ public sealed class PaletteEntry
 /// User settings, stored in %AppData%\FrameColoringV2\settings.json so the app keeps
 /// working no matter which folder the executable sits in.
 /// </summary>
+/// <summary>When Auto next jumps to the following frame after a fill.</summary>
+public enum AutoNextMode
+{
+    /// <summary>Jump as soon as the fill is committed.</summary>
+    Immediate,
+
+    /// <summary>Hold on the frame for a moment first, so the fill can be checked.</summary>
+    Delayed
+}
+
+/// <summary>How the brush deals with the pixels that already have something in them.</summary>
+public enum BrushMode
+{
+    /// <summary>Paints underneath, so only transparent and half transparent pixels take the color.</summary>
+    Behind,
+
+    /// <summary>Paints on top of everything, like an ordinary brush.</summary>
+    Over
+}
+
 public sealed class GradientStopSetting
 {
     public float Position { get; set; }
@@ -24,7 +44,8 @@ public sealed class AppSettings
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        Converters = { new JsonStringEnumConverter() }
     };
 
     public const int MaxRecent = 10;
@@ -32,6 +53,7 @@ public sealed class AppSettings
     public const string DefaultCheckerLight = "#464a50";
     public const string DefaultCheckerDark = "#3a3e44";
     public const int DefaultCheckerSquareSize = 8;
+    public const int DefaultAutoNextDelayMs = 50;
 
     public string? LastOpenFolder { get; set; }
     public string? LastSaveFolder { get; set; }
@@ -40,8 +62,14 @@ public sealed class AppSettings
     public bool OnionSkin { get; set; } = true;
     public float OnionSkinOpacity { get; set; } = 0.4f;
     public int BrushSize { get; set; } = 4;
+    public BrushMode BrushMode { get; set; } = BrushMode.Behind;
     public int FillTolerance { get; set; } = 2;
     public bool AutoNextFrame { get; set; }
+    public AutoNextMode AutoNextMode { get; set; } = AutoNextMode.Immediate;
+    public int AutoNextDelayMs { get; set; } = DefaultAutoNextDelayMs;
+
+    /// <summary>Full paths of the frames the user starred as finished, so the stars survive a restart.</summary>
+    public List<string> DoneFrames { get; set; } = new();
     public int MedianRadius { get; set; } = 2;
     public bool MedianIgnoreTransparent { get; set; } = true;
     public List<GradientStopSetting> GradientMapStops { get; set; } = new();
@@ -55,6 +83,9 @@ public sealed class AppSettings
     public string ExternalEditorPath { get; set; } = @"C:\Program Files\Adobe\Adobe Photoshop 2025\Photoshop.exe";
     public bool ReopenLastFolder { get; set; } = true;
     public int SidebarWidth { get; set; } = 360;
+
+    /// <summary>Interface scale in percent (100 = the design size). Applied on startup.</summary>
+    public int UiScalePercent { get; set; } = 100;
 
     // Transparency checkerboard behind the frame.
     public string CheckerLightColor { get; set; } = DefaultCheckerLight;

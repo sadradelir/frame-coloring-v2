@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using FrameColoringV2.App;
 using FrameColoringV2.Imaging;
 using FrameColoringV2.Models;
@@ -31,6 +31,9 @@ public sealed partial class MainForm : Form
     // Controls (built in MainForm.Layout.cs).
     private CanvasView canvas = null!;
     private ListView framesList = null!;
+    private ImageList framesIcons = null!;
+    private readonly ToolTip toolTips = new();
+    private Button starButton = null!;
     private MenuStrip menuStrip = null!;
     private ToolStrip toolStrip = null!;
     private StatusStrip statusStrip = null!;
@@ -49,6 +52,12 @@ public sealed partial class MainForm : Form
     private ToolStripButton cropToolButton = null!;
     private ToolStripButton applyCropButton = null!;
     private ToolStripButton autoNextButton = null!;
+    private ToolStripDropDownButton autoNextModeButton = null!;
+    private ToolStripDropDownButton brushModeButton = null!;
+    private ToolStripMenuItem brushBehindItem = null!;
+    private ToolStripMenuItem brushOverItem = null!;
+    private ToolStripMenuItem autoNextImmediateItem = null!;
+    private ToolStripMenuItem autoNextDelayedItem = null!;
     private ToolStripButton onionSkinButton = null!;
     private ToolStripLabel brushSizeLabel = null!;
     private ToolStripLabel fillBleedLabel = null!;
@@ -71,6 +80,8 @@ public sealed partial class MainForm : Form
     private Rectangle cropRectangle = new(0, 0, 0, 0);
     private bool suppressSelectionEvents;
     private bool paintingStroke;
+    private System.Windows.Forms.Timer? autoNextTimer;   // delayed Auto next
+    private bool restarting;                             // set when a restart already asked about unsaved work
 
     // Rendering.
     private Action<Image<Rgba32>>? previewAdjustment;   // shown on the canvas while a filter dialog is open
@@ -80,6 +91,7 @@ public sealed partial class MainForm : Form
     public MainForm(IEnumerable<string>? startupPaths = null)
     {
         settings = AppSettings.Load();
+        Theme.SetScale(settings.UiScalePercent / 100f);
 
         BuildUi();
         ApplyCanvasSettings();
@@ -419,13 +431,96 @@ public sealed partial class MainForm : Form
         _ => "Edit"
     };
 
+    private void SetBrushMode(BrushMode mode)
+    {
+        settings.BrushMode = mode;
+        RefreshBrushMode();
+    }
+
+    /// <summary>Keeps the brush mode drop-down in step with the setting.</summary>
+    private void RefreshBrushMode()
+    {
+        bool over = settings.BrushMode == BrushMode.Over;
+
+        brushBehindItem.Checked = !over;
+        brushOverItem.Checked = over;
+        brushModeButton.Text = over ? "Over everything" : "Behind";
+        brushModeButton.ToolTipText = over
+            ? "The brush paints on top of everything, like an ordinary brush"
+            : "The brush stays under the line art: only transparent pixels take the color";
+    }
+
+    private void SetAutoNextMode(AutoNextMode mode)
+    {
+        settings.AutoNextMode = mode;
+        RefreshAutoNextMode();
+    }
+
+    /// <summary>Keeps the mode drop-down in step with the setting.</summary>
+    private void RefreshAutoNextMode()
+    {
+        bool delayed = settings.AutoNextMode == AutoNextMode.Delayed;
+
+        autoNextDelayedItem.Text = $"Delayed ({settings.AutoNextDelayMs} ms)";
+        autoNextImmediateItem.Checked = !delayed;
+        autoNextDelayedItem.Checked = delayed;
+        autoNextModeButton.Text = delayed ? $"Delayed ({settings.AutoNextDelayMs} ms)" : "Immediate";
+    }
+
     /// <summary>Auto next: after a fill, move on to the next frame in the list.</summary>
     private void AutoAdvanceFrame()
     {
         if (!settings.AutoNextFrame) return;
         if (framesList.SelectedIndices.Count != 1) return; // ambiguous with a multi selection
 
-        StepFrame(1);
+        if (settings.AutoNextMode == AutoNextMode.Immediate)
+        {
+            AdvanceToNextFrame();
+            return;
+        }
+
+        // Delayed: paint the fill right away and stay on the frame for a moment,
+        // so the result can be checked before the next frame comes up.
+        canvas.Update();
+
+        autoNextTimer ??= CreateAutoNextTimer();
+        autoNextTimer.Stop();
+        autoNextTimer.Interval = Math.Max(1, settings.AutoNextDelayMs);
+        autoNextTimer.Start();
+    }
+
+    /// <summary>Auto next lands on the following frame, skipping the ones starred as finished.</summary>
+    private void AdvanceToNextFrame()
+    {
+        int current = framesList.SelectedIndices.Count > 0 ? framesList.SelectedIndices[0] : -1;
+        int count = Math.Min(framesList.Items.Count, session.Count);
+
+        for (int index = current + 1; index < count; index++)
+        {
+            if (session[index].IsDone) continue;
+
+            SetSelection(new[] { index });
+            framesList.Items[index].EnsureVisible();
+            return;
+        }
+
+        SetStatusMessage("No unstarred frames left after this one.");
+    }
+
+    private System.Windows.Forms.Timer CreateAutoNextTimer()
+    {
+        var timer = new System.Windows.Forms.Timer();
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+
+            // The selection may have moved (or the folder closed) while we waited.
+            if (!settings.AutoNextFrame || framesList.SelectedIndices.Count != 1) return;
+
+            AdvanceToNextFrame();
+        };
+
+        return timer;
     }
 
     private static string? FirstExistingFolder(params string?[] candidates) =>
@@ -462,6 +557,8 @@ public sealed partial class MainForm : Form
         fillBleedLabel.Visible = isFill;
         fillBleedHost.Visible = isFill;
         autoNextButton.Visible = isFill || isReplaceFill;
+        autoNextModeButton.Visible = (isFill || isReplaceFill) && settings.AutoNextFrame;
+        brushModeButton.Visible = currentTool == EditorTool.Brush;   // the eraser always clears
         brushSizeLabel.Visible = isBrush;
         brushSizeHost.Visible = isBrush;
         applyCropButton.Visible = isCrop;
@@ -573,7 +670,8 @@ public sealed partial class MainForm : Form
                     FrameOps.ReplaceFill(image, pixel.X, pixel.Y, currentColor, new HashSet<(int, int)>());
                     break;
                 case EditorTool.Brush:
-                    FrameOps.Brush(image, pixel.X, pixel.Y, currentColor, (int)brushSizeUpDown.Value);
+                    FrameOps.Brush(image, pixel.X, pixel.Y, currentColor, (int)brushSizeUpDown.Value,
+                        settings.BrushMode == BrushMode.Over);
                     break;
                 case EditorTool.Eraser:
                     FrameOps.Brush(image, pixel.X, pixel.Y, new Rgba32(0, 0, 0, 0), (int)brushSizeUpDown.Value);
@@ -1261,6 +1359,8 @@ public sealed partial class MainForm : Form
 
     private void ShowSettings()
     {
+        int scaleBefore = settings.UiScalePercent;
+
         using var dialog = new SettingsDialog(settings);
 
         // Show every change on the canvas straight away; Cancel puts the old values back.
@@ -1276,11 +1376,28 @@ public sealed partial class MainForm : Form
         {
             ApplyCanvasSettings();
             settings.Save();
+
+            if (settings.UiScalePercent != scaleBefore) OfferRestartForScale();
         }
         else
         {
             ApplyCanvasSettings();
         }
+    }
+
+    /// <summary>The interface scale is picked up while the window is built, so it needs a restart.</summary>
+    private void OfferRestartForScale()
+    {
+        var answer = MessageBox.Show(this,
+            $"The interface scale is now {settings.UiScalePercent}%." + Environment.NewLine + Environment.NewLine
+                + "Restart Frame Coloring to apply it?",
+            "Interface scale", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+        if (answer != DialogResult.Yes) return;
+        if (!ConfirmDiscardChanges()) return;
+
+        restarting = true;
+        Application.Restart();
     }
 
     private (Color light, Color dark, int square) CanvasSettings() => (
@@ -1432,13 +1549,19 @@ public sealed partial class MainForm : Form
         framesList.BeginUpdate();
         framesList.Items.Clear();
 
+        var done = settings.DoneFrames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         foreach (var document in session.Documents)
         {
+            // Stars are remembered per file, so reopening a folder brings them back.
+            document.IsDone = done.Contains(document.FilePath);
             framesList.Items.Add(new ListViewItem(document.DisplayName) { ToolTipText = document.FilePath });
         }
 
         framesList.EndUpdate();
         suppressSelectionEvents = false;
+
+        RefreshFrameLabels();
 
         if (selectFirst && framesList.Items.Count > 0) SetSelection(new[] { 0 });
         else
@@ -1454,10 +1577,102 @@ public sealed partial class MainForm : Form
     {
         for (int i = 0; i < framesList.Items.Count && i < session.Count; i++)
         {
-            string label = session[i].DisplayName;
-            if (framesList.Items[i].Text != label) framesList.Items[i].Text = label;
-            framesList.Items[i].ForeColor = session[i].IsDirty ? Theme.Accent : Theme.Text;
+            var document = session[i];
+            var item = framesList.Items[i];
+
+            if (item.Text != document.DisplayName) item.Text = document.DisplayName;
+
+            item.ForeColor = document.IsDirty ? Theme.Accent
+                : document.IsDone ? Theme.TextDim
+                : Theme.Text;
+
+            // Index 0 is a blank tile, so starred and unstarred rows line up.
+            int icon = document.IsDone ? 1 : 0;
+            if (item.ImageIndex != icon) item.ImageIndex = icon;
         }
+
+        UpdateStarButton();
+    }
+
+    // ------------------------------------------------------------ finished frames
+
+    /// <summary>Stars every selected frame, or clears the stars when they are all starred already.</summary>
+    private void ToggleDoneOnSelection()
+    {
+        var documents = SelectedDocuments();
+        if (documents.Count == 0) return;
+
+        bool markDone = documents.Any(document => !document.IsDone);
+        foreach (var document in documents) document.IsDone = markDone;
+
+        RememberDoneFrames();
+        RefreshFrameLabels();
+        UpdateStatus();
+    }
+
+    private void ClearAllDone()
+    {
+        foreach (var document in session.Documents) document.IsDone = false;
+
+        RememberDoneFrames();
+        RefreshFrameLabels();
+        UpdateStatus();
+    }
+
+    /// <summary>Writes the stars of the open frames into the settings, keeping the ones from other folders.</summary>
+    private void RememberDoneFrames()
+    {
+        var open = session.Documents.Select(d => d.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var remembered = settings.DoneFrames
+            .Where(path => !open.Contains(path))
+            .Concat(session.Documents.Where(d => d.IsDone).Select(d => d.FilePath))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        settings.DoneFrames = remembered;
+    }
+
+    private void UpdateStarButton()
+    {
+        if (starButton == null) return;
+
+        var documents = SelectedDocuments();
+        bool allDone = documents.Count > 0 && documents.All(document => document.IsDone);
+
+        starButton.Image = Icons.Get(allDone ? "star" : "star-outline", Icons.Small, allDone ? Icons.Star : Theme.Text);
+        toolTips.SetToolTip(starButton, allDone ? "Unstar the selected frames (S)" : "Star the selected frames as finished (S)");
+    }
+
+    /// <summary>Selects the next frame that is not starred yet, wrapping around from the top.</summary>
+    private void JumpToNextPendingFrame()
+    {
+        int next = NextPendingIndex();
+        if (next < 0)
+        {
+            SetStatusMessage("Every frame is starred as finished.");
+            return;
+        }
+
+        SetSelection(new[] { next });
+        framesList.Items[next].EnsureVisible();
+    }
+
+    /// <summary>The first unstarred frame after the current one, or -1 when there is none left.</summary>
+    private int NextPendingIndex()
+    {
+        int count = Math.Min(framesList.Items.Count, session.Count);
+        if (count == 0) return -1;
+
+        int current = framesList.SelectedIndices.Count > 0 ? framesList.SelectedIndices[0] : -1;
+
+        for (int step = 1; step <= count; step++)
+        {
+            int index = (current + step) % count;
+            if (!session[index].IsDone) return index;
+        }
+
+        return -1;
     }
 
     private void SetSelection(IEnumerable<int> indices)
@@ -1572,6 +1787,7 @@ public sealed partial class MainForm : Form
         redoMenuItem.Enabled = history.CanRedo;
         redoMenuItem.Text = history.CanRedo ? $"Redo {history.RedoLabel}" : "Redo";
         statusDirty.Text = session.UnsavedCount > 0 ? $"● {session.UnsavedCount} unsaved" : string.Empty;
+        UpdateStarButton();
 
         string folder = session.CommonFolder ?? (session.Count > 0 ? "multiple folders" : string.Empty);
         Text = session.Count == 0
@@ -1598,6 +1814,7 @@ public sealed partial class MainForm : Form
             case Keys.E: SetTool(EditorTool.Eraser); return true;
             case Keys.I: SetTool(EditorTool.Picker); return true;
             case Keys.C: SetTool(EditorTool.Crop); return true;
+            case Keys.S: ToggleDoneOnSelection(); return true;
             case Keys.Left: StepFrame(-1); return true;
             case Keys.Right: StepFrame(1); return true;
         }
@@ -1633,7 +1850,8 @@ public sealed partial class MainForm : Form
 
     private void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
     {
-        if (!ConfirmDiscardChanges())
+        // A restart for the interface scale has already dealt with unsaved work.
+        if (!restarting && !ConfirmDiscardChanges())
         {
             e.Cancel = true;
             return;
@@ -1647,6 +1865,8 @@ public sealed partial class MainForm : Form
     {
         if (disposing)
         {
+            autoNextTimer?.Dispose();
+            toolTips.Dispose();
             composite?.Dispose();
             displayBitmap?.Dispose();
             history.Dispose();

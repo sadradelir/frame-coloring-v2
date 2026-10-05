@@ -162,4 +162,10 @@ public sealed class MedianFilterDialog : Form
         else radiusSlider.Value = (int)radiusInput.Value;
         syncingRadius = false;
     }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Theme.ScaleForm(this);   // laid out at scale 1, grown to the user's interface scale
+    }
 }

@@ -217,4 +217,10 @@ public sealed class DistanceFieldDialog : Form
         ForeColor = Theme.Text,
         BorderStyle = BorderStyle.FixedSingle
     };
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        Theme.ScaleForm(this);   // laid out at scale 1, grown to the user's interface scale
+    }
 }

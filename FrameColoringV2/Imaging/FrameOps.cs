@@ -32,7 +32,13 @@ public static class FrameOps
         return new Rgba32(r, g, b, a);
     }
 
-    public static void Brush(Image<Rgba32> image, int centerX, int centerY, Rgba32 color, int size)
+    /// <param name="paintOver">
+    /// False (the default) lays the color underneath what is already there, so it only shows
+    /// up in the transparent and half transparent pixels and the line art stays untouched.
+    /// True paints on top like an ordinary brush.
+    /// </param>
+    public static void Brush(Image<Rgba32> image, int centerX, int centerY, Rgba32 color, int size,
+        bool paintOver = false)
     {
         for (int x = centerX - size; x <= centerX + size; x++)
         {
@@ -42,7 +48,9 @@ public static class FrameOps
 
                 image[x, y] = color.A == 0
                     ? new Rgba32(0, 0, 0, 0) // eraser
-                    : AlphaBlend(image[x, y], color);
+                    : paintOver
+                        ? AlphaBlend(color, image[x, y])
+                        : AlphaBlend(image[x, y], color);
             }
         }
     }

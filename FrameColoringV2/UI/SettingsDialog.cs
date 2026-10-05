@@ -4,7 +4,7 @@ namespace FrameColoringV2.UI;
 
 /// <summary>
 /// Application settings. The left hand list holds one entry per section; today there is
-/// only "Canvas", new sections are added by writing another BuildXxxPage method and
+/// "Canvas" and "Interface"; new sections are added by writing another BuildXxxPage method and
 /// registering it in <see cref="pages"/>.
 /// </summary>
 public sealed class SettingsDialog : Form
@@ -18,6 +18,7 @@ public sealed class SettingsDialog : Form
     private Color checkerLight;
     private Color checkerDark;
     private int checkerSquare;
+    private int uiScalePercent;
 
     private Panel checkerPreview = null!;
     private Button checkerLightButton = null!;
@@ -34,6 +35,7 @@ public sealed class SettingsDialog : Form
         checkerLight = ParseColor(settings.CheckerLightColor, AppSettings.DefaultCheckerLight);
         checkerDark = ParseColor(settings.CheckerDarkColor, AppSettings.DefaultCheckerDark);
         checkerSquare = Math.Clamp(settings.CheckerSquareSize, 2, 64);
+        uiScalePercent = Math.Clamp(settings.UiScalePercent, 100, 200);
 
         Text = "Settings";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -48,7 +50,8 @@ public sealed class SettingsDialog : Form
 
         pages = new Dictionary<string, Func<Control>>
         {
-            ["Canvas"] = BuildCanvasPage
+            ["Canvas"] = BuildCanvasPage,
+            ["Interface"] = BuildInterfacePage
         };
 
         pageHost = new Panel
@@ -76,6 +79,7 @@ public sealed class SettingsDialog : Form
 
         BuildButtonRow();
 
+        Theme.ScaleForm(this);
         categoryList.SelectedIndex = 0;
     }
 
@@ -126,7 +130,9 @@ public sealed class SettingsDialog : Form
         pageHost.Controls.Clear();
         if (category == null || !pages.TryGetValue(category, out var factory)) return;
 
+        // Pages are laid out at scale 1 and grown to match the rest of the dialog.
         var page = factory();
+        if (Theme.Scale > 1f) page.Scale(new SizeF(Theme.Scale, Theme.Scale));
         page.Dock = DockStyle.Fill;
         pageHost.Controls.Add(page);
     }
@@ -219,6 +225,92 @@ public sealed class SettingsDialog : Form
         return page;
     }
 
+    // --------------------------------------------------------------- interface
+
+    private Control BuildInterfacePage()
+    {
+        var page = new Panel { BackColor = Theme.Surface };
+
+        page.Controls.Add(new Label
+        {
+            Location = new Point(0, 0),
+            Size = new Size(400, 20),
+            Text = "INTERFACE SCALE",
+            ForeColor = Theme.TextDim,
+            Font = Theme.UiFontBold
+        });
+
+        page.Controls.Add(new Label
+        {
+            Location = new Point(0, 34),
+            Size = new Size(110, 24),
+            Text = "Scale",
+            TextAlign = ContentAlignment.MiddleLeft
+        });
+
+        var scaleInput = new NumericUpDown
+        {
+            Location = new Point(116, 32),
+            Size = new Size(70, 26),
+            Minimum = 100,
+            Maximum = 200,
+            Increment = 10,
+            Value = uiScalePercent,
+            BackColor = Theme.SurfaceAlt,
+            ForeColor = Theme.Text,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        page.Controls.Add(scaleInput);
+
+        page.Controls.Add(new Label
+        {
+            Location = new Point(192, 34),
+            Size = new Size(60, 24),
+            Text = "percent",
+            ForeColor = Theme.TextDim,
+            TextAlign = ContentAlignment.MiddleLeft
+        });
+
+        var scaleTrack = new TrackBar
+        {
+            Location = new Point(0, 68),
+            Size = new Size(416, 40),
+            Minimum = 100,
+            Maximum = 200,
+            SmallChange = 10,
+            LargeChange = 20,
+            TickFrequency = 10,
+            Value = uiScalePercent,
+            BackColor = Theme.Surface
+        };
+        page.Controls.Add(scaleTrack);
+
+        // Both controls edit the same value, so keep them pointing at each other.
+        scaleInput.ValueChanged += (_, _) =>
+        {
+            uiScalePercent = (int)scaleInput.Value;
+            if (scaleTrack.Value != uiScalePercent) scaleTrack.Value = uiScalePercent;
+        };
+        scaleTrack.ValueChanged += (_, _) =>
+        {
+            uiScalePercent = scaleTrack.Value;
+            if ((int)scaleInput.Value != uiScalePercent) scaleInput.Value = uiScalePercent;
+        };
+
+        page.Controls.Add(new Label
+        {
+            Location = new Point(0, 116),
+            Size = new Size(416, 60),
+            Text = "Makes the buttons, the frame list and the text bigger, which is easier to hit "
+                 + "with the mouse. The frames themselves are not affected."
+                 + Environment.NewLine + Environment.NewLine
+                 + "The new size is applied when the app is restarted.",
+            ForeColor = Theme.TextDim
+        });
+
+        return page;
+    }
+
     private void CheckerPreview_Paint(object? sender, PaintEventArgs e)
     {
         using var brush = CanvasView.CreateCheckerBrush(checkerLight, checkerDark, checkerSquare);
@@ -266,13 +358,18 @@ public sealed class SettingsDialog : Form
         checkerLight = ParseColor(AppSettings.DefaultCheckerLight, AppSettings.DefaultCheckerLight);
         checkerDark = ParseColor(AppSettings.DefaultCheckerDark, AppSettings.DefaultCheckerDark);
         checkerSquare = AppSettings.DefaultCheckerSquareSize;
+        uiScalePercent = 100;
         RefreshCheckerControls();
+        ShowPage(categoryList.SelectedItem as string);
     }
 
     // ------------------------------------------------------------------ result
 
     /// <summary>The values as they are right now, so the editor can preview them.</summary>
     public (Color light, Color dark, int square) Checkerboard => (checkerLight, checkerDark, checkerSquare);
+
+    /// <summary>The interface scale the user picked, which only takes effect on the next start.</summary>
+    public int UiScalePercent => uiScalePercent;
 
     private void PreviewSettings() => PreviewChanged?.Invoke(this, EventArgs.Empty);
 
@@ -281,6 +378,7 @@ public sealed class SettingsDialog : Form
         settings.CheckerLightColor = ToHex(checkerLight);
         settings.CheckerDarkColor = ToHex(checkerDark);
         settings.CheckerSquareSize = checkerSquare;
+        settings.UiScalePercent = uiScalePercent;
     }
 
     public static Color ParseColor(string? hex, string fallback)
